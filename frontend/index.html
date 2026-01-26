@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>nocturne</title>
+
+    <!-- Video.js -->
+    <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet">
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0a0a;
+            color: #fff;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #222;
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: #e50914;
+            cursor: pointer;
+            text-decoration: none;
+            position: relative;
+            display: inline-block;
+        }
+
+        .logo .beta {
+            font-size: 10px;
+            color: #888;
+            font-weight: normal;
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+        }
+
+        .search-box {
+            flex: 1;
+            display: flex;
+            gap: 10px;
+        }
+
+        .search-box input {
+            flex: 1;
+            padding: 12px 16px;
+            border: none;
+            border-radius: 4px;
+            background: #222;
+            color: #fff;
+            font-size: 16px;
+        }
+
+        .search-box input:focus {
+            outline: 2px solid #e50914;
+        }
+
+        .search-box button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            background: #e50914;
+            color: #fff;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .search-box button:hover {
+            background: #f40612;
+        }
+
+        /* Player Section */
+        .player-section {
+            display: none;
+            margin-bottom: 30px;
+        }
+
+        .player-section.active {
+            display: block;
+        }
+
+        .player-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .player-title {
+            font-size: 20px;
+        }
+
+        .player-controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .player-controls select {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            background: #222;
+            color: #fff;
+            font-size: 14px;
+        }
+
+        .back-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            background: #333;
+            color: #fff;
+            cursor: pointer;
+        }
+
+        .video-container {
+            width: 100%;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .video-js {
+            width: 100%;
+            background: #000;
+        }
+
+        /* Remove blue focus outline from player */
+        .video-js:focus,
+        .video-js *:focus,
+        .video-container *:focus {
+            outline: none !important;
+            box-shadow: none !important;
+        }
+
+        /* Results Section */
+        .results-section {
+            display: none;
+        }
+
+        .results-section.active {
+            display: block;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .result-card {
+            background: #1a1a1a;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .result-card:hover {
+            transform: scale(1.05);
+        }
+
+        .result-poster {
+            width: 100%;
+            aspect-ratio: 2/3;
+            background: #333;
+            object-fit: cover;
+        }
+
+        .result-info {
+            padding: 12px;
+        }
+
+        .result-title {
+            font-size: 14px;
+            margin-bottom: 4px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .result-meta {
+            font-size: 12px;
+            color: #888;
+        }
+
+        /* Episode Selector */
+        .episode-section {
+            display: none;
+            margin-bottom: 30px;
+        }
+
+        .episode-section.active {
+            display: block;
+        }
+
+        .season-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            overflow-x: auto;
+            padding-bottom: 10px;
+        }
+
+        .season-tab {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            background: #222;
+            color: #fff;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .season-tab.active {
+            background: #e50914;
+        }
+
+        .episodes-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            gap: 10px;
+        }
+
+        .episode-btn {
+            padding: 12px;
+            border: none;
+            border-radius: 4px;
+            background: #222;
+            color: #fff;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .episode-btn:hover {
+            background: #333;
+        }
+
+        .episode-btn.active {
+            background: #e50914;
+        }
+
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+        }
+
+        .spinner {
+            border: 3px solid #333;
+            border-top: 3px solid #e50914;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            color: #e50914;
+            padding: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo" onclick="goHome()">nocturne<span class="beta">beta</span></div>
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="Search movies and TV shows...">
+                <button onclick="search()">Search</button>
+            </div>
+        </header>
+
+        <!-- Player Section -->
+        <div id="playerSection" class="player-section">
+            <div class="player-header">
+                <h2 id="playerTitle" class="player-title"></h2>
+                <div class="player-controls">
+                    <select id="translationSelect" onchange="changeTranslation()"></select>
+                    <select id="qualitySelect" onchange="changeQuality()">
+                        <option value="">Auto</option>
+                    </select>
+                    <select id="speedSelect" onchange="changeSpeed()">
+                        <option value="0.25">0.25x</option>
+                        <option value="0.5">0.5x</option>
+                        <option value="0.75">0.75x</option>
+                        <option value="1" selected>1x</option>
+                        <option value="1.25">1.25x</option>
+                        <option value="1.5">1.5x</option>
+                        <option value="1.75">1.75x</option>
+                        <option value="2">2x</option>
+                    </select>
+                    <button class="back-btn" onclick="hidePlayer()">Back</button>
+                </div>
+            </div>
+            <div class="video-container">
+                <video id="videoPlayer" class="video-js vjs-big-play-centered" controls preload="auto">
+                </video>
+            </div>
+        </div>
+
+        <!-- Episode Selector (for series) -->
+        <div id="episodeSection" class="episode-section">
+            <div id="seasonTabs" class="season-tabs"></div>
+            <div id="episodesGrid" class="episodes-grid"></div>
+        </div>
+
+        <!-- Search Results -->
+        <div id="resultsSection" class="results-section">
+            <div id="resultsGrid" class="results-grid"></div>
+        </div>
+
+        <div id="loading" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <div>Loading...</div>
+        </div>
+
+        <div id="error" class="error" style="display: none;"></div>
+    </div>
+
+    <!-- Video.js -->
+    <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+
+    <script>
+        const API_BASE = '/api';
+        let player = null;
+        let currentContent = null;
+        let currentSeason = 1;
+        let currentEpisode = 1;
+        let currentTranslation = null;
+        let currentAllUrls = {};  // quality -> url mapping
+        let currentSpeed = 1;
+        let lastSubtitleIndex = 0;  // remember which subtitle track was last active
+
+        // Initialize video.js player
+        function initPlayer() {
+            if (player) return;
+            player = videojs('videoPlayer', {
+                fluid: false,
+                html5: {
+                    vhs: {
+                        overrideNative: true
+                    },
+                    nativeAudioTracks: false,
+                    nativeVideoTracks: false
+                }
+            });
+
+            // Dynamically resize player to match actual video aspect ratio
+            player.on('loadedmetadata', () => {
+                const vw = player.videoWidth();
+                const vh = player.videoHeight();
+                if (vw && vh) {
+                    const container = document.querySelector('.video-container');
+                    const width = container.clientWidth;
+                    const height = Math.round(width * (vh / vw));
+                    player.dimensions(width, height);
+                }
+            });
+
+            // Also handle window resize
+            window.addEventListener('resize', () => {
+                if (!player || player.isFullscreen()) return;
+                const vw = player.videoWidth();
+                const vh = player.videoHeight();
+                if (vw && vh) {
+                    const container = document.querySelector('.video-container');
+                    const width = container.clientWidth;
+                    const height = Math.round(width * (vh / vw));
+                    player.dimensions(width, height);
+                }
+            });
+        }
+
+        // Search
+        async function search() {
+            const query = document.getElementById('searchInput').value.trim();
+            if (!query) return;
+
+            showLoading();
+            hidePlayer();
+
+            try {
+                const response = await fetch(`${API_BASE}/search?q=${encodeURIComponent(query)}`);
+                const data = await response.json();
+                displayResults(data.results);
+            } catch (e) {
+                showError('Search failed: ' + e.message);
+            }
+        }
+
+        // Display search results
+        function displayResults(results) {
+            hideLoading();
+            const grid = document.getElementById('resultsGrid');
+            grid.innerHTML = '';
+
+            if (!results.length) {
+                grid.innerHTML = '<p style="color:#888">No results found</p>';
+            }
+
+            results.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'result-card';
+                card.onclick = () => selectContent(item);
+                card.innerHTML = `
+                    <img class="result-poster" src="${item.poster || 'https://via.placeholder.com/200x300?text=No+Image'}" alt="">
+                    <div class="result-info">
+                        <div class="result-title">${item.title}</div>
+                        <div class="result-meta">${item.type} ${item.year || ''}</div>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+
+            document.getElementById('resultsSection').classList.add('active');
+        }
+
+        // Select content
+        async function selectContent(item) {
+            showLoading();
+            currentContent = item;
+
+            try {
+                const response = await fetch(`${API_BASE}/content?url=${encodeURIComponent(item.url)}`);
+                const data = await response.json();
+
+                currentContent.info = data;
+
+                // Setup translation selector
+                const transSelect = document.getElementById('translationSelect');
+                transSelect.innerHTML = data.translations.map(t =>
+                    `<option value="${t.id}">${t.name}</option>`
+                ).join('');
+
+                // Default to "Оригинал + Субтитры" if available
+                // It's typically the last option in the list
+                let defaultTrans = null;
+                for (let i = data.translations.length - 1; i >= 0; i--) {
+                    const name = data.translations[i].name.toLowerCase();
+                    if (name.includes('оригинал') || name.includes('субтитры')) {
+                        defaultTrans = data.translations[i];
+                        break;
+                    }
+                }
+                if (defaultTrans) {
+                    currentTranslation = defaultTrans.id;
+                    transSelect.value = defaultTrans.id;
+                } else {
+                    currentTranslation = data.translations[0]?.id;
+                }
+
+                if (data.is_series) {
+                    // Show episode selector
+                    setupEpisodeSelector(data);
+                } else {
+                    // Play movie directly
+                    playStream(item.url);
+                }
+            } catch (e) {
+                showError('Failed to load content: ' + e.message);
+            }
+        }
+
+        // Setup episode selector for series
+        function setupEpisodeSelector(info) {
+            hideLoading();
+            const seasons = Object.keys(info.seasons).map(Number).sort((a, b) => a - b);
+            const firstSeason = seasons[0] || 1;
+
+            // Season tabs
+            const tabsEl = document.getElementById('seasonTabs');
+            tabsEl.innerHTML = seasons.map(s =>
+                `<button class="season-tab ${s === firstSeason ? 'active' : ''}" onclick="selectSeason(${s})">Season ${s}</button>`
+            ).join('');
+
+            // Show episodes for first season
+            selectSeason(firstSeason);
+
+            document.getElementById('episodeSection').classList.add('active');
+            document.getElementById('resultsSection').classList.remove('active');
+
+            // Auto-play first episode
+            const firstEpisodes = info.seasons[firstSeason] || [];
+            if (firstEpisodes.length > 0) {
+                playEpisode(firstSeason, firstEpisodes[0]);
+            }
+        }
+
+        // Select season
+        function selectSeason(season) {
+            currentSeason = season;
+            const episodes = currentContent.info.seasons[season] || [];
+
+            // Update active tab
+            document.querySelectorAll('.season-tab').forEach(tab => {
+                tab.classList.toggle('active', tab.textContent.includes(season));
+            });
+
+            // Show episodes
+            const grid = document.getElementById('episodesGrid');
+            grid.innerHTML = episodes.map(ep =>
+                `<button class="episode-btn" onclick="playEpisode(${season}, ${ep})">Ep ${ep}</button>`
+            ).join('');
+        }
+
+        // Play episode
+        function playEpisode(season, episode) {
+            currentSeason = season;
+            currentEpisode = episode;
+            playStream(currentContent.url, season, episode);
+
+            // Update active episode button
+            document.querySelectorAll('.episode-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.textContent === `Ep ${episode}`);
+            });
+        }
+
+        // Play stream
+        async function playStream(url, season = null, episode = null) {
+            showLoading();
+            initPlayer();
+
+            try {
+                let apiUrl = `${API_BASE}/stream?url=${encodeURIComponent(url)}`;
+                if (season !== null) apiUrl += `&season=${season}`;
+                if (episode !== null) apiUrl += `&episode=${episode}`;
+                if (currentTranslation) apiUrl += `&translator_id=${currentTranslation}`;
+
+                const response = await fetch(apiUrl);
+                const data = await response.json();
+
+                if (!data.stream_url) {
+                    throw new Error('No stream URL returned');
+                }
+
+                // Store quality URLs for quality switching
+                currentAllUrls = data.all_urls || {};
+
+                // Populate quality selector
+                const qualitySelect = document.getElementById('qualitySelect');
+                qualitySelect.innerHTML = '';
+                const qualities = Object.keys(currentAllUrls);
+                if (qualities.length > 0) {
+                    qualities.forEach(q => {
+                        const opt = document.createElement('option');
+                        opt.value = q;
+                        opt.textContent = q;
+                        qualitySelect.appendChild(opt);
+                    });
+                    // Select the best quality (last one) by default
+                    qualitySelect.value = qualities[qualities.length - 1];
+                } else {
+                    qualitySelect.innerHTML = '<option value="">Auto</option>';
+                }
+
+                // Set player source
+                const streamUrl = qualities.length > 0
+                    ? currentAllUrls[qualities[qualities.length - 1]]
+                    : data.stream_url;
+                player.src({
+                    src: streamUrl,
+                    type: streamUrl.includes('.m3u8') ? 'application/x-mpegURL' : 'video/mp4'
+                });
+
+                // Remove old text tracks before adding new ones
+                const oldTracks = player.remoteTextTracks();
+                for (let i = oldTracks.length - 1; i >= 0; i--) {
+                    player.removeRemoteTextTrack(oldTracks[i]);
+                }
+
+                // Add subtitles
+                if (data.subtitles) {
+                    data.subtitles.forEach((sub, i) => {
+                        player.addRemoteTextTrack({
+                            kind: 'subtitles',
+                            label: sub.name || sub.lang,
+                            srclang: sub.lang,
+                            src: sub.url,
+                            default: i === 0
+                        }, false);
+                    });
+                }
+
+                // Restore playback speed
+                player.playbackRate(currentSpeed);
+                player.play();
+
+                // Show player
+                const displayTitle = currentContent.title + (season ? ` - S${season}E${episode}` : '');
+                document.getElementById('playerTitle').textContent = displayTitle;
+                document.title = displayTitle;
+                document.getElementById('playerSection').classList.add('active');
+                document.getElementById('resultsSection').classList.remove('active');
+
+                hideLoading();
+            } catch (e) {
+                showError('Failed to load stream: ' + e.message);
+            }
+        }
+
+        // Change translation
+        function changeTranslation() {
+            currentTranslation = document.getElementById('translationSelect').value;
+            if (currentContent.info?.is_series) {
+                playEpisode(currentSeason, currentEpisode);
+            } else {
+                playStream(currentContent.url);
+            }
+        }
+
+        // Hide player
+        function hidePlayer() {
+            document.getElementById('playerSection').classList.remove('active');
+            document.getElementById('episodeSection').classList.remove('active');
+            document.getElementById('resultsSection').classList.add('active');
+            if (player) player.pause();
+            document.title = 'nocturne';
+        }
+
+        // Go back to main page
+        function goHome() {
+            hidePlayer();
+            document.getElementById('resultsSection').classList.remove('active');
+            document.getElementById('searchInput').value = '';
+            document.getElementById('resultsGrid').innerHTML = '';
+            document.title = 'nocturne';
+        }
+
+        // Loading/Error UI
+        function showLoading() {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('error').style.display = 'none';
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+        }
+
+        function showError(msg) {
+            hideLoading();
+            document.getElementById('error').textContent = msg;
+            document.getElementById('error').style.display = 'block';
+        }
+
+        // Change video quality
+        function changeQuality() {
+            const quality = document.getElementById('qualitySelect').value;
+            if (!quality || !currentAllUrls[quality]) return;
+
+            const currentTime = player.currentTime();
+            const wasPaused = player.paused();
+            const url = currentAllUrls[quality];
+
+            player.src({
+                src: url,
+                type: url.includes('.m3u8') ? 'application/x-mpegURL' : 'video/mp4'
+            });
+
+            player.one('loadedmetadata', () => {
+                player.currentTime(currentTime);
+                player.playbackRate(currentSpeed);
+                if (!wasPaused) player.play();
+            });
+        }
+
+        // Change playback speed
+        function changeSpeed() {
+            currentSpeed = parseFloat(document.getElementById('speedSelect').value);
+            if (player) player.playbackRate(currentSpeed);
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', e => {
+            // Don't handle shortcuts when typing in search input
+            if (document.activeElement === document.getElementById('searchInput')) return;
+            // Only handle shortcuts when player is visible
+            if (!document.getElementById('playerSection').classList.contains('active')) return;
+            if (!player) return;
+
+            switch (e.key) {
+                case 'ArrowRight':
+                    e.preventDefault();
+                    player.currentTime(player.currentTime() + 10);
+                    break;
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    player.currentTime(player.currentTime() - 10);
+                    break;
+                case 'ArrowUp':
+                    e.preventDefault();
+                    player.volume(Math.min(1, player.volume() + 0.05));
+                    break;
+                case 'ArrowDown':
+                    e.preventDefault();
+                    player.volume(Math.max(0, player.volume() - 0.05));
+                    break;
+                case ' ':
+                case 'k':
+                    e.preventDefault();
+                    if (player.paused()) {
+                        player.play();
+                    } else {
+                        player.pause();
+                    }
+                    break;
+                case '>':  // Shift + >
+                    if (e.shiftKey) {
+                        e.preventDefault();
+                        const speeds = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+                        const idx = speeds.indexOf(currentSpeed);
+                        if (idx < speeds.length - 1) {
+                            currentSpeed = speeds[idx + 1];
+                            player.playbackRate(currentSpeed);
+                            document.getElementById('speedSelect').value = currentSpeed;
+                        }
+                    }
+                    break;
+                case '<':  // Shift + <
+                    if (e.shiftKey) {
+                        e.preventDefault();
+                        const speeds = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+                        const idx = speeds.indexOf(currentSpeed);
+                        if (idx > 0) {
+                            currentSpeed = speeds[idx - 1];
+                            player.playbackRate(currentSpeed);
+                            document.getElementById('speedSelect').value = currentSpeed;
+                        }
+                    }
+                    break;
+                case 'f':
+                    e.preventDefault();
+                    if (player.isFullscreen()) {
+                        player.exitFullscreen();
+                    } else {
+                        player.requestFullscreen();
+                    }
+                    break;
+                case 'c':
+                    e.preventDefault();
+                    // Toggle subtitles/captions on/off, remembering last active track
+                    const tracks = player.textTracks();
+                    let activeTrackIdx = -1;
+                    for (let i = 0; i < tracks.length; i++) {
+                        if ((tracks[i].kind === 'subtitles' || tracks[i].kind === 'captions') && tracks[i].mode === 'showing') {
+                            activeTrackIdx = i;
+                            break;
+                        }
+                    }
+                    if (activeTrackIdx >= 0) {
+                        // Subtitles are on — remember which one and disable all
+                        lastSubtitleIndex = activeTrackIdx;
+                        for (let i = 0; i < tracks.length; i++) {
+                            if (tracks[i].kind === 'subtitles' || tracks[i].kind === 'captions') {
+                                tracks[i].mode = 'disabled';
+                            }
+                        }
+                    } else {
+                        // Subtitles are off — re-enable the last used track
+                        for (let i = 0; i < tracks.length; i++) {
+                            if (tracks[i].kind === 'subtitles' || tracks[i].kind === 'captions') {
+                                tracks[i].mode = (i === lastSubtitleIndex) ? 'showing' : 'disabled';
+                            }
+                        }
+                    }
+                    break;
+            }
+        });
+
+        // Enter key to search
+        document.getElementById('searchInput').addEventListener('keypress', e => {
+            if (e.key === 'Enter') search();
+        });
+    </script>
+</body>
+</html>
