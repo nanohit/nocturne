@@ -3,10 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>nocturne</title>
+    <title>alphy</title>
 
     <!-- Video.js -->
     <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet">
+    <!-- IBM Plex Mono for logo -->
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@700&display=swap" rel="stylesheet">
 
     <style>
         * {
@@ -38,21 +40,24 @@
         }
 
         .logo {
+            font-family: 'IBM Plex Mono', monospace;
             font-size: 24px;
-            font-weight: bold;
+            font-weight: 700;
             color: #e50914;
             cursor: pointer;
             text-decoration: none;
             position: relative;
             display: inline-block;
+            padding-bottom: 14px;
         }
 
         .logo .beta {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             font-size: 10px;
             color: #888;
             font-weight: normal;
             position: absolute;
-            bottom: -2px;
+            bottom: 0;
             left: 0;
         }
 
@@ -88,6 +93,103 @@
 
         .search-box button:hover {
             background: #f40612;
+        }
+
+        /* Continue Watching Section */
+        .continue-section {
+            display: none;
+            margin-bottom: 30px;
+        }
+
+        .continue-section.active {
+            display: block;
+        }
+
+        .continue-section h3 {
+            font-size: 16px;
+            color: #ccc;
+            margin-bottom: 15px;
+        }
+
+        .continue-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .continue-card {
+            background: #1a1a1a;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.2s;
+            position: relative;
+        }
+
+        .continue-card:hover {
+            transform: scale(1.05);
+        }
+
+        .continue-dismiss {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: rgba(0,0,0,0.7);
+            border: none;
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2;
+            line-height: 1;
+        }
+
+        .continue-dismiss:hover {
+            background: rgba(229,9,20,0.8);
+        }
+
+        .continue-poster {
+            width: 100%;
+            aspect-ratio: 2/3;
+            background: #333;
+            object-fit: cover;
+        }
+
+        .continue-info {
+            padding: 10px 12px 12px;
+        }
+
+        .continue-title {
+            font-size: 13px;
+            margin-bottom: 4px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .continue-meta {
+            font-size: 11px;
+            color: #e50914;
+            margin-bottom: 6px;
+        }
+
+        .continue-progress {
+            width: 100%;
+            height: 3px;
+            background: #333;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .continue-progress-bar {
+            height: 100%;
+            background: #e50914;
+            border-radius: 2px;
         }
 
         /* Player Section */
@@ -293,12 +395,18 @@
 <body>
     <div class="container">
         <header>
-            <div class="logo" onclick="goHome()">nocturne<span class="beta">beta</span></div>
+            <div class="logo" onclick="goHome()">alphy<span class="beta">beta</span></div>
             <div class="search-box">
                 <input type="text" id="searchInput" placeholder="Search movies and TV shows...">
                 <button onclick="search()">Search</button>
             </div>
         </header>
+
+        <!-- Continue Watching Section (homepage) -->
+        <div id="continueSection" class="continue-section">
+            <h3 id="continueHeader">Continue watching</h3>
+            <div id="continueGrid" class="continue-grid"></div>
+        </div>
 
         <!-- Player Section -->
         <div id="playerSection" class="player-section">
@@ -357,11 +465,246 @@
         let currentSeason = 1;
         let currentEpisode = 1;
         let currentTranslation = null;
-        let currentAllUrls = {};  // quality -> url mapping
+        let currentAllUrls = {};
         let currentSpeed = 1;
-        let lastSubtitleIndex = 0;  // remember which subtitle track was last active
+        let lastSubtitleIndex = 0;
+        let progressInterval = null;
 
-        // Initialize video.js player
+        // =====================
+        // localStorage Watch History
+        // =====================
+        function getWatchHistory() {
+            try {
+                return JSON.parse(localStorage.getItem('alphy_watch') || '[]');
+            } catch { return []; }
+        }
+
+        function saveWatchHistory(history) {
+            localStorage.setItem('alphy_watch', JSON.stringify(history));
+        }
+
+        function updateWatchProgress(contentUrl, data) {
+            let history = getWatchHistory();
+            const idx = history.findIndex(h => h.url === contentUrl &&
+                h.season === (data.season || null) &&
+                h.episode === (data.episode || null));
+            const entry = {
+                url: contentUrl,
+                title: data.title,
+                poster: data.poster || null,
+                type: data.type,
+                season: data.season || null,
+                episode: data.episode || null,
+                currentTime: data.currentTime,
+                duration: data.duration,
+                progress: data.duration > 0 ? data.currentTime / data.duration : 0,
+                timestamp: Date.now(),
+                // for series: info needed to compute next episode
+                nextSeason: data.nextSeason || null,
+                nextEpisode: data.nextEpisode || null,
+                finished: data.progress >= 0.9
+            };
+            if (idx >= 0) {
+                history[idx] = entry;
+            } else {
+                history.unshift(entry);
+            }
+            // Keep only 5 most recent, sorted by timestamp
+            history.sort((a, b) => b.timestamp - a.timestamp);
+            history = history.slice(0, 5);
+            saveWatchHistory(history);
+        }
+
+        function removeFromHistory(contentUrl, season, episode) {
+            let history = getWatchHistory();
+            history = history.filter(h => !(h.url === contentUrl &&
+                h.season === (season || null) &&
+                h.episode === (episode || null)));
+            saveWatchHistory(history);
+            renderContinueWatching();
+        }
+
+        function getNextEpisodeInfo() {
+            if (!currentContent?.info?.is_series) return { nextSeason: null, nextEpisode: null };
+            const seasons = currentContent.info.seasons;
+            const seasonKeys = Object.keys(seasons).map(Number).sort((a, b) => a - b);
+            const currentEps = seasons[currentSeason] || [];
+            const epIdx = currentEps.indexOf(currentEpisode);
+            if (epIdx < currentEps.length - 1) {
+                return { nextSeason: currentSeason, nextEpisode: currentEps[epIdx + 1] };
+            }
+            // Try next season
+            const sIdx = seasonKeys.indexOf(currentSeason);
+            if (sIdx < seasonKeys.length - 1) {
+                const nextS = seasonKeys[sIdx + 1];
+                const nextEps = seasons[nextS] || [];
+                if (nextEps.length > 0) {
+                    return { nextSeason: nextS, nextEpisode: nextEps[0] };
+                }
+            }
+            return { nextSeason: null, nextEpisode: null };
+        }
+
+        function startProgressTracking() {
+            stopProgressTracking();
+            progressInterval = setInterval(() => {
+                if (!player || !currentContent) return;
+                const dur = player.duration();
+                const cur = player.currentTime();
+                if (!dur || dur <= 0) return;
+
+                const { nextSeason, nextEpisode } = getNextEpisodeInfo();
+                const progress = cur / dur;
+
+                updateWatchProgress(currentContent.url, {
+                    title: currentContent.title,
+                    poster: currentContent.poster,
+                    type: currentContent.info?.is_series ? 'series' : 'movie',
+                    season: currentContent.info?.is_series ? currentSeason : null,
+                    episode: currentContent.info?.is_series ? currentEpisode : null,
+                    currentTime: cur,
+                    duration: dur,
+                    progress: progress,
+                    nextSeason,
+                    nextEpisode
+                });
+            }, 5000); // save every 5 seconds
+        }
+
+        function stopProgressTracking() {
+            if (progressInterval) {
+                clearInterval(progressInterval);
+                progressInterval = null;
+            }
+        }
+
+        function renderContinueWatching() {
+            const history = getWatchHistory();
+            const section = document.getElementById('continueSection');
+            const grid = document.getElementById('continueGrid');
+            const header = document.getElementById('continueHeader');
+
+            // Filter: only show entries that are not fully watched (< 90%) OR finished series with next ep
+            const items = history.filter(h => {
+                if (h.type === 'series' && h.finished && h.nextEpisode !== null) return true;
+                if (!h.finished) return true;
+                return false;
+            });
+
+            if (items.length === 0) {
+                section.classList.remove('active');
+                return;
+            }
+
+            grid.innerHTML = '';
+            items.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'continue-card';
+
+                const isNextEp = item.type === 'series' && item.finished && item.nextEpisode !== null;
+                let metaText = '';
+                if (isNextEp) {
+                    metaText = `Next: S${item.nextSeason}E${item.nextEpisode}`;
+                } else if (item.type === 'series') {
+                    metaText = `S${item.season}E${item.episode}`;
+                } else {
+                    const mins = Math.floor((item.duration - item.currentTime) / 60);
+                    metaText = `${mins} min left`;
+                }
+
+                card.innerHTML = `
+                    <button class="continue-dismiss" onclick="event.stopPropagation(); removeFromHistory('${item.url}', ${item.season}, ${item.episode})">&times;</button>
+                    <img class="continue-poster" src="${item.poster || 'https://via.placeholder.com/200x300?text=No+Image'}" alt="">
+                    <div class="continue-info">
+                        <div class="continue-title">${item.title}</div>
+                        <div class="continue-meta">${metaText}</div>
+                        <div class="continue-progress"><div class="continue-progress-bar" style="width: ${isNextEp ? 0 : Math.round(item.progress * 100)}%"></div></div>
+                    </div>
+                `;
+
+                card.onclick = () => {
+                    if (isNextEp) {
+                        resumeContent(item.url, item.title, item.poster, item.nextSeason, item.nextEpisode, 0);
+                    } else {
+                        resumeContent(item.url, item.title, item.poster, item.season, item.episode, item.currentTime);
+                    }
+                };
+
+                grid.appendChild(card);
+            });
+
+            // Set header text
+            const hasNextEp = items.some(i => i.type === 'series' && i.finished && i.nextEpisode !== null);
+            const hasContinue = items.some(i => !i.finished);
+            if (hasNextEp && !hasContinue) {
+                header.textContent = 'Next episode';
+            } else {
+                header.textContent = 'Continue watching';
+            }
+
+            section.classList.add('active');
+        }
+
+        async function resumeContent(url, title, poster, season, episode, resumeTime) {
+            showLoading();
+            currentContent = { url, title, poster };
+
+            try {
+                const response = await fetch(`${API_BASE}/content?url=${encodeURIComponent(url)}`);
+                const data = await response.json();
+                currentContent.info = data;
+
+                // Setup translation selector
+                const transSelect = document.getElementById('translationSelect');
+                transSelect.innerHTML = data.translations.map(t =>
+                    `<option value="${t.id}">${t.name}</option>`
+                ).join('');
+
+                let defaultTrans = null;
+                for (let i = data.translations.length - 1; i >= 0; i--) {
+                    const name = data.translations[i].name.toLowerCase();
+                    if (name.includes('оригинал') || name.includes('субтитры')) {
+                        defaultTrans = data.translations[i];
+                        break;
+                    }
+                }
+                if (defaultTrans) {
+                    currentTranslation = defaultTrans.id;
+                    transSelect.value = defaultTrans.id;
+                } else {
+                    currentTranslation = data.translations[0]?.id;
+                }
+
+                if (data.is_series) {
+                    const seasons = Object.keys(data.seasons).map(Number).sort((a, b) => a - b);
+                    const tabsEl = document.getElementById('seasonTabs');
+                    tabsEl.innerHTML = seasons.map(s =>
+                        `<button class="season-tab ${s === season ? 'active' : ''}" onclick="selectSeason(${s})">Season ${s}</button>`
+                    ).join('');
+                    selectSeason(season);
+                    document.getElementById('episodeSection').classList.add('active');
+                    document.getElementById('resultsSection').classList.remove('active');
+                    document.getElementById('continueSection').classList.remove('active');
+
+                    currentSeason = season;
+                    currentEpisode = episode;
+                    playStream(url, season, episode, resumeTime);
+                    // highlight episode
+                    document.querySelectorAll('.episode-btn').forEach(btn => {
+                        btn.classList.toggle('active', btn.textContent === `Ep ${episode}`);
+                    });
+                } else {
+                    document.getElementById('continueSection').classList.remove('active');
+                    playStream(url, null, null, resumeTime);
+                }
+            } catch (e) {
+                showError('Failed to resume: ' + e.message);
+            }
+        }
+
+        // =====================
+        // Player
+        // =====================
         function initPlayer() {
             if (player) return;
             player = videojs('videoPlayer', {
@@ -375,7 +718,6 @@
                 }
             });
 
-            // Dynamically resize player to match actual video aspect ratio
             player.on('loadedmetadata', () => {
                 const vw = player.videoWidth();
                 const vh = player.videoHeight();
@@ -387,7 +729,6 @@
                 }
             });
 
-            // Also handle window resize
             window.addEventListener('resize', () => {
                 if (!player || player.isFullscreen()) return;
                 const vw = player.videoWidth();
@@ -397,6 +738,28 @@
                     const width = container.clientWidth;
                     const height = Math.round(width * (vh / vw));
                     player.dimensions(width, height);
+                }
+            });
+
+            // When episode finishes, check for next episode
+            player.on('ended', () => {
+                if (currentContent?.info?.is_series) {
+                    const { nextSeason, nextEpisode } = getNextEpisodeInfo();
+                    if (nextEpisode !== null) {
+                        // Save finished state
+                        updateWatchProgress(currentContent.url, {
+                            title: currentContent.title,
+                            poster: currentContent.poster,
+                            type: 'series',
+                            season: currentSeason,
+                            episode: currentEpisode,
+                            currentTime: player.duration(),
+                            duration: player.duration(),
+                            progress: 1,
+                            nextSeason,
+                            nextEpisode
+                        });
+                    }
                 }
             });
         }
@@ -418,7 +781,6 @@
             }
         }
 
-        // Display search results
         function displayResults(results) {
             hideLoading();
             const grid = document.getElementById('resultsGrid');
@@ -443,9 +805,9 @@
             });
 
             document.getElementById('resultsSection').classList.add('active');
+            document.getElementById('continueSection').classList.remove('active');
         }
 
-        // Select content
         async function selectContent(item) {
             showLoading();
             currentContent = item;
@@ -456,14 +818,11 @@
 
                 currentContent.info = data;
 
-                // Setup translation selector
                 const transSelect = document.getElementById('translationSelect');
                 transSelect.innerHTML = data.translations.map(t =>
                     `<option value="${t.id}">${t.name}</option>`
                 ).join('');
 
-                // Default to "Оригинал + Субтитры" if available
-                // It's typically the last option in the list
                 let defaultTrans = null;
                 for (let i = data.translations.length - 1; i >= 0; i--) {
                     const name = data.translations[i].name.toLowerCase();
@@ -480,10 +839,8 @@
                 }
 
                 if (data.is_series) {
-                    // Show episode selector
                     setupEpisodeSelector(data);
                 } else {
-                    // Play movie directly
                     playStream(item.url);
                 }
             } catch (e) {
@@ -491,64 +848,62 @@
             }
         }
 
-        // Setup episode selector for series
         function setupEpisodeSelector(info) {
             hideLoading();
             const seasons = Object.keys(info.seasons).map(Number).sort((a, b) => a - b);
             const firstSeason = seasons[0] || 1;
 
-            // Season tabs
             const tabsEl = document.getElementById('seasonTabs');
             tabsEl.innerHTML = seasons.map(s =>
                 `<button class="season-tab ${s === firstSeason ? 'active' : ''}" onclick="selectSeason(${s})">Season ${s}</button>`
             ).join('');
 
-            // Show episodes for first season
             selectSeason(firstSeason);
 
             document.getElementById('episodeSection').classList.add('active');
             document.getElementById('resultsSection').classList.remove('active');
+            document.getElementById('continueSection').classList.remove('active');
 
-            // Auto-play first episode
+            // Load first episode but don't autoplay
             const firstEpisodes = info.seasons[firstSeason] || [];
             if (firstEpisodes.length > 0) {
-                playEpisode(firstSeason, firstEpisodes[0]);
+                currentSeason = firstSeason;
+                currentEpisode = firstEpisodes[0];
+                playStream(currentContent.url, firstSeason, firstEpisodes[0]);
+                document.querySelectorAll('.episode-btn').forEach(btn => {
+                    btn.classList.toggle('active', btn.textContent === `Ep ${firstEpisodes[0]}`);
+                });
             }
         }
 
-        // Select season
         function selectSeason(season) {
             currentSeason = season;
             const episodes = currentContent.info.seasons[season] || [];
 
-            // Update active tab
             document.querySelectorAll('.season-tab').forEach(tab => {
                 tab.classList.toggle('active', tab.textContent.includes(season));
             });
 
-            // Show episodes
             const grid = document.getElementById('episodesGrid');
             grid.innerHTML = episodes.map(ep =>
                 `<button class="episode-btn" onclick="playEpisode(${season}, ${ep})">Ep ${ep}</button>`
             ).join('');
         }
 
-        // Play episode
         function playEpisode(season, episode) {
             currentSeason = season;
             currentEpisode = episode;
             playStream(currentContent.url, season, episode);
 
-            // Update active episode button
             document.querySelectorAll('.episode-btn').forEach(btn => {
                 btn.classList.toggle('active', btn.textContent === `Ep ${episode}`);
             });
         }
 
-        // Play stream
-        async function playStream(url, season = null, episode = null) {
+        async function playStream(url, season = null, episode = null, resumeTime = 0) {
             showLoading();
             initPlayer();
+            stopProgressTracking();
 
             try {
                 let apiUrl = `${API_BASE}/stream?url=${encodeURIComponent(url)}`;
@@ -563,10 +918,8 @@
                     throw new Error('No stream URL returned');
                 }
 
-                // Store quality URLs for quality switching
                 currentAllUrls = data.all_urls || {};
 
-                // Populate quality selector
                 const qualitySelect = document.getElementById('qualitySelect');
                 qualitySelect.innerHTML = '';
                 const qualities = Object.keys(currentAllUrls);
@@ -577,13 +930,11 @@
                         opt.textContent = q;
                         qualitySelect.appendChild(opt);
                     });
-                    // Select the best quality (last one) by default
                     qualitySelect.value = qualities[qualities.length - 1];
                 } else {
                     qualitySelect.innerHTML = '<option value="">Auto</option>';
                 }
 
-                // Set player source
                 const streamUrl = qualities.length > 0
                     ? currentAllUrls[qualities[qualities.length - 1]]
                     : data.stream_url;
@@ -592,13 +943,12 @@
                     type: streamUrl.includes('.m3u8') ? 'application/x-mpegURL' : 'video/mp4'
                 });
 
-                // Remove old text tracks before adding new ones
+                // Remove old text tracks
                 const oldTracks = player.remoteTextTracks();
                 for (let i = oldTracks.length - 1; i >= 0; i--) {
                     player.removeRemoteTextTrack(oldTracks[i]);
                 }
 
-                // Add subtitles
                 if (data.subtitles) {
                     data.subtitles.forEach((sub, i) => {
                         player.addRemoteTextTrack({
@@ -611,9 +961,16 @@
                     });
                 }
 
-                // Restore playback speed
                 player.playbackRate(currentSpeed);
-                player.play();
+
+                // Resume from saved position if provided
+                if (resumeTime > 0) {
+                    player.one('loadedmetadata', () => {
+                        player.currentTime(resumeTime);
+                    });
+                }
+
+                // Do NOT autoplay — user clicks play manually
 
                 // Show player
                 const displayTitle = currentContent.title + (season ? ` - S${season}E${episode}` : '');
@@ -622,13 +979,15 @@
                 document.getElementById('playerSection').classList.add('active');
                 document.getElementById('resultsSection').classList.remove('active');
 
+                // Start tracking progress
+                startProgressTracking();
+
                 hideLoading();
             } catch (e) {
                 showError('Failed to load stream: ' + e.message);
             }
         }
 
-        // Change translation
         function changeTranslation() {
             currentTranslation = document.getElementById('translationSelect').value;
             if (currentContent.info?.is_series) {
@@ -638,25 +997,24 @@
             }
         }
 
-        // Hide player
         function hidePlayer() {
             document.getElementById('playerSection').classList.remove('active');
             document.getElementById('episodeSection').classList.remove('active');
             document.getElementById('resultsSection').classList.add('active');
             if (player) player.pause();
-            document.title = 'nocturne';
+            stopProgressTracking();
+            document.title = 'alphy';
         }
 
-        // Go back to main page
         function goHome() {
             hidePlayer();
             document.getElementById('resultsSection').classList.remove('active');
             document.getElementById('searchInput').value = '';
             document.getElementById('resultsGrid').innerHTML = '';
-            document.title = 'nocturne';
+            document.title = 'alphy';
+            renderContinueWatching();
         }
 
-        // Loading/Error UI
         function showLoading() {
             document.getElementById('loading').style.display = 'block';
             document.getElementById('error').style.display = 'none';
@@ -672,7 +1030,6 @@
             document.getElementById('error').style.display = 'block';
         }
 
-        // Change video quality
         function changeQuality() {
             const quality = document.getElementById('qualitySelect').value;
             if (!quality || !currentAllUrls[quality]) return;
@@ -693,106 +1050,89 @@
             });
         }
 
-        // Change playback speed
         function changeSpeed() {
             currentSpeed = parseFloat(document.getElementById('speedSelect').value);
             if (player) player.playbackRate(currentSpeed);
         }
 
-        // Keyboard shortcuts
+        // Keyboard shortcuts — use e.code for layout independence
         document.addEventListener('keydown', e => {
-            // Don't handle shortcuts when typing in search input
             if (document.activeElement === document.getElementById('searchInput')) return;
-            // Only handle shortcuts when player is visible
             if (!document.getElementById('playerSection').classList.contains('active')) return;
             if (!player) return;
 
-            switch (e.key) {
-                case 'ArrowRight':
-                    e.preventDefault();
-                    player.currentTime(player.currentTime() + 10);
-                    break;
-                case 'ArrowLeft':
-                    e.preventDefault();
-                    player.currentTime(player.currentTime() - 10);
-                    break;
-                case 'ArrowUp':
-                    e.preventDefault();
-                    player.volume(Math.min(1, player.volume() + 0.05));
-                    break;
-                case 'ArrowDown':
-                    e.preventDefault();
-                    player.volume(Math.max(0, player.volume() - 0.05));
-                    break;
-                case ' ':
-                case 'k':
-                    e.preventDefault();
-                    if (player.paused()) {
-                        player.play();
-                    } else {
-                        player.pause();
+            const code = e.code;
+
+            // Arrow keys work regardless of layout
+            if (code === 'ArrowRight') {
+                e.preventDefault();
+                player.currentTime(player.currentTime() + 10);
+                return;
+            }
+            if (code === 'ArrowLeft') {
+                e.preventDefault();
+                player.currentTime(player.currentTime() - 10);
+                return;
+            }
+            if (code === 'ArrowUp') {
+                e.preventDefault();
+                player.volume(Math.min(1, player.volume() + 0.05));
+                return;
+            }
+            if (code === 'ArrowDown') {
+                e.preventDefault();
+                player.volume(Math.max(0, player.volume() - 0.05));
+                return;
+            }
+            if (code === 'Space' || code === 'KeyK') {
+                e.preventDefault();
+                if (player.paused()) player.play(); else player.pause();
+                return;
+            }
+            if (code === 'KeyF') {
+                e.preventDefault();
+                if (player.isFullscreen()) player.exitFullscreen(); else player.requestFullscreen();
+                return;
+            }
+            if (code === 'KeyC') {
+                e.preventDefault();
+                const tracks = player.textTracks();
+                let activeTrackIdx = -1;
+                for (let i = 0; i < tracks.length; i++) {
+                    if ((tracks[i].kind === 'subtitles' || tracks[i].kind === 'captions') && tracks[i].mode === 'showing') {
+                        activeTrackIdx = i;
+                        break;
                     }
-                    break;
-                case '>':  // Shift + >
-                    if (e.shiftKey) {
-                        e.preventDefault();
-                        const speeds = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
-                        const idx = speeds.indexOf(currentSpeed);
-                        if (idx < speeds.length - 1) {
-                            currentSpeed = speeds[idx + 1];
-                            player.playbackRate(currentSpeed);
-                            document.getElementById('speedSelect').value = currentSpeed;
-                        }
-                    }
-                    break;
-                case '<':  // Shift + <
-                    if (e.shiftKey) {
-                        e.preventDefault();
-                        const speeds = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
-                        const idx = speeds.indexOf(currentSpeed);
-                        if (idx > 0) {
-                            currentSpeed = speeds[idx - 1];
-                            player.playbackRate(currentSpeed);
-                            document.getElementById('speedSelect').value = currentSpeed;
-                        }
-                    }
-                    break;
-                case 'f':
-                    e.preventDefault();
-                    if (player.isFullscreen()) {
-                        player.exitFullscreen();
-                    } else {
-                        player.requestFullscreen();
-                    }
-                    break;
-                case 'c':
-                    e.preventDefault();
-                    // Toggle subtitles/captions on/off, remembering last active track
-                    const tracks = player.textTracks();
-                    let activeTrackIdx = -1;
+                }
+                if (activeTrackIdx >= 0) {
+                    lastSubtitleIndex = activeTrackIdx;
                     for (let i = 0; i < tracks.length; i++) {
-                        if ((tracks[i].kind === 'subtitles' || tracks[i].kind === 'captions') && tracks[i].mode === 'showing') {
-                            activeTrackIdx = i;
-                            break;
+                        if (tracks[i].kind === 'subtitles' || tracks[i].kind === 'captions') {
+                            tracks[i].mode = 'disabled';
                         }
                     }
-                    if (activeTrackIdx >= 0) {
-                        // Subtitles are on — remember which one and disable all
-                        lastSubtitleIndex = activeTrackIdx;
-                        for (let i = 0; i < tracks.length; i++) {
-                            if (tracks[i].kind === 'subtitles' || tracks[i].kind === 'captions') {
-                                tracks[i].mode = 'disabled';
-                            }
-                        }
-                    } else {
-                        // Subtitles are off — re-enable the last used track
-                        for (let i = 0; i < tracks.length; i++) {
-                            if (tracks[i].kind === 'subtitles' || tracks[i].kind === 'captions') {
-                                tracks[i].mode = (i === lastSubtitleIndex) ? 'showing' : 'disabled';
-                            }
+                } else {
+                    for (let i = 0; i < tracks.length; i++) {
+                        if (tracks[i].kind === 'subtitles' || tracks[i].kind === 'captions') {
+                            tracks[i].mode = (i === lastSubtitleIndex) ? 'showing' : 'disabled';
                         }
                     }
-                    break;
+                }
+                return;
+            }
+            // Shift+. (>) and Shift+, (<) for speed — use Period/Comma codes
+            if (e.shiftKey && (code === 'Period' || code === 'Comma')) {
+                e.preventDefault();
+                const speeds = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+                const idx = speeds.indexOf(currentSpeed);
+                if (code === 'Period' && idx < speeds.length - 1) {
+                    currentSpeed = speeds[idx + 1];
+                } else if (code === 'Comma' && idx > 0) {
+                    currentSpeed = speeds[idx - 1];
+                }
+                player.playbackRate(currentSpeed);
+                document.getElementById('speedSelect').value = currentSpeed;
+                return;
             }
         });
 
@@ -800,6 +1140,9 @@
         document.getElementById('searchInput').addEventListener('keypress', e => {
             if (e.key === 'Enter') search();
         });
+
+        // Show continue watching on page load
+        renderContinueWatching();
     </script>
 </body>
 </html>

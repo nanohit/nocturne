@@ -14,7 +14,7 @@ from backend.services.extractor import (
     initialize
 )
 
-app = FastAPI(title="nocturne")
+app = FastAPI(title="alphy")
 
 # CORS for frontend
 app.add_middleware(
