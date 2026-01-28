@@ -3,18 +3,18 @@
 Requires Python 3.10+ and hdrezka>=4.0.0
 """
 import asyncio
+import random
 from typing import Optional
 from dataclasses import dataclass
 
 import httpx
 from hdrezka import Search
-from hdrezka.api.http import login_global
 from hdrezka.url import Request
 from hdrezka.post.page import Page
 from hdrezka.post.inline import InlineInfo
 import hdrezka.api.http as hdrezka_http
 
-from backend.config import HDREZKA_EMAIL, HDREZKA_PASSWORD, HDREZKA_MIRROR
+from backend.config import HDREZKA_MIRROR
 from backend.services.cache import cache
 
 
@@ -41,9 +41,18 @@ def _patched_inline_info(*args):
 Page._inline_info = _patched_inline_info
 
 
+# User agents pool to rotate
+USER_AGENTS = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
+]
+
 # Browser-like headers to avoid being blocked
 BROWSER_HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'User-Agent': random.choice(USER_AGENTS),
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
     'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8',
     'Accept-Encoding': 'gzip, deflate, br',
@@ -72,8 +81,15 @@ class SearchResult:
 _initialized = False
 
 
+# Fallback mirrors in order of preference (no login required, no geo-block)
+FALLBACK_MIRRORS = [
+    'https://hdrezka.me/',
+    'https://hdrezka.kim/',
+]
+
+
 async def initialize():
-    """Initialize the HDRezka client with auth and mirror."""
+    """Initialize the HDRezka client with mirror (no login needed)."""
     global _initialized
     if _initialized:
         return
@@ -88,22 +104,27 @@ async def initialize():
     hdrezka_http.DEFAULT_CLIENT = custom_client
     print("Configured custom HTTP client with browser headers")
 
-    # Set custom mirror
+    # Try configured mirror first, then fallbacks
+    mirrors_to_try = []
     if HDREZKA_MIRROR:
-        Request.HOST = HDREZKA_MIRROR
-        print(f"Using mirror: {HDREZKA_MIRROR}")
+        mirrors_to_try.append(HDREZKA_MIRROR)
+    mirrors_to_try.extend([m for m in FALLBACK_MIRRORS if m not in mirrors_to_try])
 
-    # Login for geo-bypass (non-blocking, retry on failure)
-    if HDREZKA_EMAIL and HDREZKA_PASSWORD:
-        for attempt in range(3):
-            try:
-                await login_global(HDREZKA_EMAIL, HDREZKA_PASSWORD)
-                print(f"Logged in as {HDREZKA_EMAIL}")
+    for mirror in mirrors_to_try:
+        try:
+            Request.HOST = mirror
+            # Quick health check - try to fetch homepage
+            resp = await hdrezka_http.DEFAULT_CLIENT.get(mirror, timeout=10.0)
+            if resp.status_code == 200:
+                print(f"Using mirror: {mirror}")
                 break
-            except Exception as e:
-                print(f"Login attempt {attempt + 1}/3: {type(e).__name__}: {e}")
-                if attempt < 2:
-                    await asyncio.sleep(2)
+        except Exception as e:
+            print(f"Mirror {mirror} failed: {e}")
+            continue
+    else:
+        # All failed, use first as default
+        Request.HOST = mirrors_to_try[0]
+        print(f"All mirrors failed health check, defaulting to: {mirrors_to_try[0]}")
 
     _initialized = True
 

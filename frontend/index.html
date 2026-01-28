@@ -404,7 +404,7 @@
 
         <!-- Continue Watching Section (homepage) -->
         <div id="continueSection" class="continue-section">
-            <h3 id="continueHeader">Continue watching</h3>
+            <h3 id="continueHeader">Продолжить просмотр</h3>
             <div id="continueGrid" class="continue-grid"></div>
         </div>
 
@@ -639,7 +639,7 @@
             if (hasNextEp && !hasContinue) {
                 header.textContent = 'Next episode';
             } else {
-                header.textContent = 'Continue watching';
+                header.textContent = 'Продолжить просмотр';
             }
 
             section.classList.add('active');
@@ -709,12 +709,15 @@
             if (player) return;
             player = videojs('videoPlayer', {
                 fluid: false,
+                techOrder: ['html5'],
                 html5: {
                     vhs: {
-                        overrideNative: true
+                        overrideNative: true,
+                        enableLowInitialPlaylist: true
                     },
                     nativeAudioTracks: false,
-                    nativeVideoTracks: false
+                    nativeVideoTracks: false,
+                    nativeTextTracks: false
                 }
             });
 
@@ -938,9 +941,11 @@
                 const streamUrl = qualities.length > 0
                     ? currentAllUrls[qualities[qualities.length - 1]]
                     : data.stream_url;
+                // Detect HLS by .m3u8 in URL or proxy path
+                const isHLS = streamUrl.includes('.m3u8') || streamUrl.includes('/api/proxy/');
                 player.src({
                     src: streamUrl,
-                    type: streamUrl.includes('.m3u8') ? 'application/x-mpegURL' : 'video/mp4'
+                    type: isHLS ? 'application/x-mpegURL' : 'video/mp4'
                 });
 
                 // Remove old text tracks
@@ -969,8 +974,6 @@
                         player.currentTime(resumeTime);
                     });
                 }
-
-                // Do NOT autoplay — user clicks play manually
 
                 // Show player
                 const displayTitle = currentContent.title + (season ? ` - S${season}E${episode}` : '');
@@ -1037,10 +1040,11 @@
             const currentTime = player.currentTime();
             const wasPaused = player.paused();
             const url = currentAllUrls[quality];
+            const isHLS = url.includes('/api/proxy/') || url.includes('.m3u8');
 
             player.src({
                 src: url,
-                type: url.includes('.m3u8') ? 'application/x-mpegURL' : 'video/mp4'
+                type: isHLS ? 'application/x-mpegURL' : 'video/mp4'
             });
 
             player.one('loadedmetadata', () => {
