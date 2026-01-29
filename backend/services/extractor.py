@@ -89,7 +89,11 @@ FALLBACK_MIRRORS = [
 
 
 async def initialize():
-    """Initialize the HDRezka client with mirror (no login needed)."""
+    """Initialize the HDRezka client with mirror (no login needed).
+
+    Uses fast initialization - just sets up the client and mirror without
+    blocking health checks. Mirror validation happens on first actual request.
+    """
     global _initialized
     if _initialized:
         return
@@ -104,29 +108,47 @@ async def initialize():
     hdrezka_http.DEFAULT_CLIENT = custom_client
     print("Configured custom HTTP client with browser headers")
 
-    # Try configured mirror first, then fallbacks
+    # Set the mirror directly without blocking health checks
+    # This prevents Render deployment timeouts
     mirrors_to_try = []
     if HDREZKA_MIRROR:
         mirrors_to_try.append(HDREZKA_MIRROR)
     mirrors_to_try.extend([m for m in FALLBACK_MIRRORS if m not in mirrors_to_try])
 
-    for mirror in mirrors_to_try:
+    # Just use the first mirror - validation happens on actual requests
+    Request.HOST = mirrors_to_try[0]
+    print(f"Using mirror: {mirrors_to_try[0]} (lazy validation)")
+
+    _initialized = True
+
+
+async def try_mirror_fallback():
+    """Try fallback mirrors if current one fails. Called on request errors."""
+    current = Request.HOST
+    mirrors_to_try = []
+    if HDREZKA_MIRROR:
+        mirrors_to_try.append(HDREZKA_MIRROR)
+    mirrors_to_try.extend([m for m in FALLBACK_MIRRORS if m not in mirrors_to_try])
+
+    # Find next mirror after current
+    try:
+        idx = mirrors_to_try.index(current)
+        next_mirrors = mirrors_to_try[idx + 1:]
+    except ValueError:
+        next_mirrors = mirrors_to_try
+
+    for mirror in next_mirrors:
         try:
-            Request.HOST = mirror
-            # Quick health check - try to fetch homepage
-            resp = await hdrezka_http.DEFAULT_CLIENT.get(mirror, timeout=10.0)
+            resp = await hdrezka_http.DEFAULT_CLIENT.get(mirror, timeout=5.0)
             if resp.status_code == 200:
-                print(f"Using mirror: {mirror}")
-                break
+                Request.HOST = mirror
+                print(f"Switched to mirror: {mirror}")
+                return True
         except Exception as e:
             print(f"Mirror {mirror} failed: {e}")
             continue
-    else:
-        # All failed, use first as default
-        Request.HOST = mirrors_to_try[0]
-        print(f"All mirrors failed health check, defaulting to: {mirrors_to_try[0]}")
 
-    _initialized = True
+    return False
 
 
 async def search_content(query: str) -> list[SearchResult]:
@@ -138,52 +160,73 @@ async def search_content(query: str) -> list[SearchResult]:
     if cached:
         return cached
 
-    try:
-        search = Search(query)
-        results_page = await search.get_page(1)
+    # Try search with mirror fallback on failure
+    for attempt in range(2):  # Try current mirror, then fallback once
+        try:
+            # Debug: test search URL directly first
+            search_url = f"{Request.HOST}search/?do=search&subaction=search&q={query}"
+            debug_resp = await hdrezka_http.DEFAULT_CLIENT.get(search_url, timeout=10.0)
+            has_results = 'b-content__inline_item' in debug_resp.text
+            print(f"DEBUG search: {search_url}")
+            print(f"DEBUG status: {debug_resp.status_code}, has_results: {has_results}, length: {len(debug_resp.text)}")
 
-        results = []
-        for item in results_page:
-            # hdrezka 4.x uses 'name' instead of 'title', 'info' for metadata
-            title = getattr(item, 'name', '') or getattr(item, 'title', '')
-            poster = getattr(item, 'poster', None)
+            if not has_results and attempt == 0:
+                # No results - might be mirror issue, try fallback
+                print(f"DEBUG no results, trying fallback mirror...")
+                if await try_mirror_fallback():
+                    continue  # Retry with new mirror
 
-            # Determine content type from URL or attributes
-            url_str = str(item.url)
-            if '/series/' in url_str:
-                content_type = 'series'
-            elif '/films/' in url_str:
-                content_type = 'movie'
-            else:
-                content_type = 'movie'
+            search = Search(query)
+            results_page = await search.get_page(1)
 
-            # Extract year from info if available
-            year = None
-            if hasattr(item, 'info') and item.info:
-                info = str(item.info)
-                # Try to find year pattern
-                import re
-                year_match = re.search(r'(\d{4})', info)
-                if year_match:
-                    year = year_match.group(1)
+            results = []
+            for item in results_page:
+                # hdrezka 4.x uses 'name' instead of 'title', 'info' for metadata
+                title = getattr(item, 'name', '') or getattr(item, 'title', '')
+                poster = getattr(item, 'poster', None)
 
-            results.append(SearchResult(
-                url=url_str,
-                title=title,
-                content_type=content_type,
-                year=year,
-                poster=str(poster) if poster else None
-            ))
+                # Determine content type from URL or attributes
+                url_str = str(item.url)
+                if '/series/' in url_str:
+                    content_type = 'series'
+                elif '/films/' in url_str:
+                    content_type = 'movie'
+                else:
+                    content_type = 'movie'
 
-        # Cache search results for 24 hours
-        cache.set(cache_key, results, ttl_seconds=86400)
-        return results
+                # Extract year from info if available
+                year = None
+                if hasattr(item, 'info') and item.info:
+                    info = str(item.info)
+                    # Try to find year pattern
+                    import re
+                    year_match = re.search(r'(\d{4})', info)
+                    if year_match:
+                        year = year_match.group(1)
 
-    except Exception as e:
-        print(f"Search error: {e}")
-        import traceback
-        traceback.print_exc()
-        return []
+                results.append(SearchResult(
+                    url=url_str,
+                    title=title,
+                    content_type=content_type,
+                    year=year,
+                    poster=str(poster) if poster else None
+                ))
+
+            # Cache search results for 24 hours
+            cache.set(cache_key, results, ttl_seconds=86400)
+            return results
+
+        except Exception as e:
+            print(f"Search error (attempt {attempt + 1}/2): {e}")
+            if attempt == 0:
+                # Try fallback mirror on first failure
+                if await try_mirror_fallback():
+                    continue
+            import traceback
+            traceback.print_exc()
+            return []
+
+    return []  # All attempts failed
 
 
 async def get_stream(

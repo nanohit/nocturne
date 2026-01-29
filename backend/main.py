@@ -22,6 +22,13 @@ from backend.services.extractor import (
 
 app = FastAPI(title="alphy")
 
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for Render deployment."""
+    return {"status": "ok", "service": "alphy"}
+
+
 # CORS for frontend
 app.add_middleware(
     CORSMiddleware,
@@ -92,8 +99,14 @@ def rewrite_m3u8(content: str, base_url: str, proxy_base: str) -> str:
 
 @app.on_event("startup")
 async def startup():
-    """Initialize HDRezka client on startup."""
+    """Initialize HDRezka client on startup.
+
+    Uses lazy initialization to avoid Render deployment timeouts.
+    Mirror validation happens on first actual request.
+    """
+    # Fast init - just sets up HTTP client, no blocking network calls
     await initialize()
+    print("alphy backend started successfully")
 
 
 @app.on_event("shutdown")
