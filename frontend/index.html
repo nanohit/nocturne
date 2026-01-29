@@ -462,7 +462,14 @@
     <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
 
     <script>
+        // Use Cloudflare Worker for stream extraction (tokens bound to edge IP)
+        // Set WORKER_URL after deploying the worker
+        const WORKER_URL = null; // e.g., 'https://alphy-stream.your-subdomain.workers.dev'
+
+        // API endpoints - use worker for streams if available, otherwise fall back to local
         const API_BASE = '/api';
+        const STREAM_API = WORKER_URL ? WORKER_URL + '/api' : API_BASE;
+
         let player = null;
         let currentContent = null;
         let currentSeason = 1;
@@ -912,7 +919,8 @@
             stopProgressTracking();
 
             try {
-                let apiUrl = `${API_BASE}/stream?url=${encodeURIComponent(url)}`;
+                // Use STREAM_API for stream extraction (Cloudflare Worker if configured)
+                let apiUrl = `${STREAM_API}/stream?url=${encodeURIComponent(url)}`;
                 if (season !== null) apiUrl += `&season=${season}`;
                 if (episode !== null) apiUrl += `&episode=${episode}`;
                 if (currentTranslation) apiUrl += `&translator_id=${currentTranslation}`;

@@ -5,3 +5,5 @@ __pycache__/
 .DS_Store
 .claude/
 test_hdrezka.py
+worker/node_modules/
+worker/.wrangler/
