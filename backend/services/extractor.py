@@ -314,6 +314,11 @@ async def get_stream(
                 all_urls=all_urls
             )
 
+            # Debug: log stream URL details
+            print(f"DEBUG stream_url: {stream_url}")
+            print(f"DEBUG qualities: {qualities}")
+            print(f"DEBUG all_urls: {all_urls}")
+
             # Cache stream URLs for 1 hour (tokens expire after ~24h but cache shorter)
             cache.set(cache_key, result, ttl_seconds=3600)
             return result
