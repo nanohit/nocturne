@@ -5,4 +5,5 @@ load_dotenv()
 
 HDREZKA_EMAIL = os.getenv("HDREZKA_EMAIL")
 HDREZKA_PASSWORD = os.getenv("HDREZKA_PASSWORD")
-HDREZKA_MIRROR = os.getenv("HDREZKA_MIRROR", "https://hdrezka.kim/")
+# Default to hdrezka.me - it has working CDN (not voidboost.cc which 404s)
+HDREZKA_MIRROR = os.getenv("HDREZKA_MIRROR", "https://hdrezka.me/")

@@ -82,9 +82,11 @@ _initialized = False
 
 
 # Fallback mirrors in order of preference (no login required, no geo-block)
+# Note: hdrezka.club uses voidboost.cc CDN which returns 404 - avoid it
 FALLBACK_MIRRORS = [
     'https://hdrezka.me/',
     'https://hdrezka.kim/',
+    'https://hdrezka.ag/',
 ]
 
 
