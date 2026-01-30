@@ -381,14 +381,18 @@ async def get_content_info(content_url: str) -> Optional[dict]:
             except Exception as e:
                 print(f"Could not get episodes: {e}")
 
-        # Get title from post
+        # Get title and content_id from post
         title = ''
+        content_id = None
         if hasattr(player, 'post'):
             title = getattr(player.post, 'title', '') or getattr(player.post, 'name', '')
+            # The post object has an 'id' attribute with the content ID
+            content_id = getattr(player.post, 'id', None)
 
         info = {
             "url": content_url,
             "title": title,
+            "content_id": content_id,  # Numeric ID for AJAX calls
             "translations": trans_list,
             "seasons": seasons,
             "is_series": is_series

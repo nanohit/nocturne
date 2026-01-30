@@ -29,6 +29,45 @@ async def health_check():
     return {"status": "ok", "service": "alphy"}
 
 
+@app.post("/api/ajax-proxy")
+async def ajax_proxy(request: Request):
+    """
+    CORS proxy for HDRezka AJAX endpoint.
+
+    This proxies the AJAX call but the resulting tokens will be bound to
+    our server's IP, not the user's. We need to test if this matters.
+    """
+    body = await request.body()
+    client = await get_proxy_client()
+
+    # Forward the request to HDRezka
+    try:
+        resp = await client.post(
+            "https://hdrezka.me/ajax/get_cdn_series/",
+            content=body,
+            headers={
+                **BROWSER_HEADERS,
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-Requested-With': 'XMLHttpRequest',
+                'Origin': 'https://hdrezka.me',
+                'Referer': 'https://hdrezka.me/',
+            }
+        )
+
+        # Return the raw response with CORS headers
+        return Response(
+            content=resp.content,
+            media_type=resp.headers.get('content-type', 'application/json'),
+            headers={
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'POST, OPTIONS',
+                'Access-Control-Allow-Headers': '*',
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
 # CORS for frontend
 app.add_middleware(
     CORSMiddleware,
