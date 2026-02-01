@@ -462,13 +462,14 @@
     <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
 
     <script>
-        // Cloudflare Worker approach doesn't work - CDN tokens are IP-bound
-        // and CF Workers use different IPs per fetch. Must proxy through backend.
-        const WORKER_URL = '';
-
-        // API endpoints - use worker for streams if available, otherwise fall back to local
+        // CDN tokens are IP-bound - the IP that generates the token must fetch the content.
+        // On production (Render), backend generates token so backend must proxy all HLS.
+        // Locally, direct CDN works because same machine generates and fetches.
         const API_BASE = '/api';
-        const STREAM_API = WORKER_URL ? WORKER_URL + '/api' : API_BASE;
+
+        // Detect if we're on production (not localhost)
+        const isProduction = !['localhost', '127.0.0.1'].includes(window.location.hostname);
+        console.log(`Environment: ${isProduction ? 'PRODUCTION (proxy mode)' : 'LOCAL (direct mode)'}`);
 
         let player = null;
         let currentContent = null;
@@ -925,12 +926,13 @@
                 let apiUrl;
                 const contentId = currentContent?.info?.content_id;
 
-                // Try direct CDN URLs first (no proxy) - testing if regional IP tolerance exists
-                // If this fails, user can manually add ?proxy=true or we detect and fallback
+                // On production: use proxy mode (backend generates AND fetches with same IP)
+                // Locally: direct CDN works (same machine generates and fetches)
                 apiUrl = `${API_BASE}/stream?url=${encodeURIComponent(url)}`;
                 if (season !== null) apiUrl += `&season=${season}`;
                 if (episode !== null) apiUrl += `&episode=${episode}`;
                 if (currentTranslation) apiUrl += `&translator_id=${currentTranslation}`;
+                if (isProduction) apiUrl += `&proxy=true`;
 
                 const response = await fetch(apiUrl);
                 const data = await response.json();
