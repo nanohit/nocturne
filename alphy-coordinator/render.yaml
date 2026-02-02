@@ -3,9 +3,9 @@ services:
     name: alphy-coordinator
     env: docker
     plan: free
-    healthCheckPath: /api/nodes
+    healthCheckPath: /health
     envVars:
-      - key: NODE_SECRET
+      - key: SOAP_LOGIN
         sync: false
-      - key: NODES_CONFIG
+      - key: SOAP_PASSWORD
         sync: false

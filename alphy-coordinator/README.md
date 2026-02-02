@@ -1,8 +1,28 @@
 # Alphy Coordinator
 
-Central coordinator for distributed Alphy proxy network.
+Direct streaming frontend for soap4youand.me. This service returns CDN URLs
+directly to the client; video bandwidth does not pass through this server.
 
-## Architecture
+## Environment Variables
+
+```
+SOAP_LOGIN=your-username
+SOAP_PASSWORD=your-password
+```
+
+## Deployment (Current)
+
+Deploy only this service and set the credentials it needs to log in to
+soap4youand.me. No proxy nodes are required.
+
+- `SOAP_LOGIN`
+- `SOAP_PASSWORD`
+- Health check: `/health`
+
+## Legacy Architecture (Deprecated)
+
+The sections below describe the old proxy-node system and are kept only for
+historical reference.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
