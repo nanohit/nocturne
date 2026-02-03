@@ -272,22 +272,16 @@ async def soap_stream(
     stream_type = "hls"
 
     if stream_url and "storage2.soap4youand.me" in stream_url:
-        try:
-            redirect_response = await client.head(stream_url, follow_redirects=False)
-            if redirect_response.status_code in (301, 302, 303, 307, 308):
-                final_url = redirect_response.headers.get("location")
-                if final_url:
-                    stream_url = final_url
-                    stream_type = "mp4"
-        except Exception as e:
-            print(f"Failed to follow redirect: {e}")
+        # Return the storage2 URL directly; the client will follow the redirect
+        # and receive a CDN URL that matches their IP.
+        stream_type = "mp4"
 
     if stream_url:
         if stream_url.endswith(".m3u8") or "/hls/" in stream_url:
             stream_type = "hls"
         elif not stream_url.endswith("/"):
             stream_type = "mp4"
-        elif stream_url.endswith("/") and "cdn-fi" in stream_url:
+        elif stream_url.endswith("/") and ("cdn-fi" in stream_url or "storage2.soap4youand.me" in stream_url):
             stream_type = "mp4"
 
     subtitles = {}
