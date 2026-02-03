@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>alphy</title>
+    
+    <!-- Video.js for HLS playback -->
+    <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet">
+    <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+    
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0a0a;
+            color: #fff;
+            min-height: 100vh;
+        }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+
+        header {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #222;
+            flex-wrap: wrap;
+        }
+        .logo {
+            font-family: monospace;
+            font-size: 28px;
+            font-weight: 700;
+            color: #e50914;
+            cursor: pointer;
+        }
+        .search-box { flex: 1; display: flex; gap: 10px; min-width: 260px; }
+        .search-box input {
+            flex: 1;
+            padding: 12px 16px;
+            border: none;
+            border-radius: 4px;
+            background: #222;
+            color: #fff;
+            font-size: 16px;
+        }
+        .search-box input:focus { outline: 2px solid #e50914; }
+        .search-box button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            background: #e50914;
+            color: #fff;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .search-box button:hover { background: #b2070f; }
+
+        .source-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: #bbb;
+        }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #333;
+            transition: 0.2s;
+            border-radius: 24px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.2s;
+            border-radius: 50%;
+        }
+        input:checked + .slider { background-color: #e50914; }
+        input:checked + .slider:before { transform: translateX(20px); }
+
+        /* Player Section */
+        .player-section { display: none; margin-bottom: 30px; }
+        .player-section.active { display: block; }
+        .player-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .player-title { font-size: 20px; }
+        .player-controls { display: flex; gap: 10px; flex-wrap: wrap; }
+        .player-controls select {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            background: #222;
+            color: #fff;
+        }
+        .video-container {
+            width: 100%;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+        }
+        .video-js { width: 100%; height: auto; aspect-ratio: 16/9; max-height: 80vh; }
+
+        /* Episode Section */
+        .episode-section { display: none; margin-bottom: 30px; }
+        .episode-section.active { display: block; }
+        .season-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        .season-tab {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            background: #222;
+            color: #fff;
+            cursor: pointer;
+        }
+        .season-tab.active { background: #e50914; }
+        .episodes-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            gap: 10px;
+        }
+        .episode-btn {
+            padding: 12px;
+            border: none;
+            border-radius: 4px;
+            background: #222;
+            color: #fff;
+            cursor: pointer;
+        }
+        .episode-btn.active { background: #e50914; }
+
+        /* Results */
+        .results-section { display: none; }
+        .results-section.active { display: block; }
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+        }
+        .result-card {
+            background: #1a1a1a;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .result-card:hover { transform: scale(1.03); }
+        .result-poster { width: 100%; height: 300px; object-fit: cover; }
+        .result-info { padding: 10px; }
+        .result-title { font-size: 14px; margin-bottom: 5px; }
+        .result-meta { font-size: 12px; color: #888; }
+
+        .loading { display: none; text-align: center; padding: 20px; }
+        .error { display: none; color: #e50914; text-align: center; padding: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo" onclick="goHome()">alphy</div>
+            <div class="source-toggle">
+                <span>soap4me</span>
+                <label class="switch">
+                    <input type="checkbox" id="sourceToggle" checked>
+                    <span class="slider"></span>
+                </label>
+                <span>hdrezka</span>
+            </div>
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="Search movies and TV shows..." autofocus>
+                <button onclick="search()">Search</button>
+            </div>
+        </header>
+
+        <div id="playerSection" class="player-section">
+            <div class="player-header">
+                <h2 id="playerTitle" class="player-title"></h2>
+                <div class="player-controls">
+                    <select id="qualitySelect" onchange="changeQuality()" style="display:none;"></select>
+                    <select id="speedSelect" onchange="changeSpeed()">
+                        <option value="0.5">0.5x</option>
+                        <option value="0.75">0.75x</option>
+                        <option value="1" selected>1x</option>
+                        <option value="1.25">1.25x</option>
+                        <option value="1.5">1.5x</option>
+                        <option value="2">2x</option>
+                    </select>
+                </div>
+            </div>
+            <div class="video-container">
+                <video id="videoPlayer" class="video-js vjs-big-play-centered" controls preload="auto"></video>
+            </div>
+        </div>
+
+        <div id="episodeSection" class="episode-section">
+            <div class="player-controls" style="margin-bottom: 15px;">
+                <select id="episodeQualitySelect" onchange="updateEpisodeSelection()"></select>
+                <select id="episodeTranslationSelect" onchange="updateEpisodeSelection()"></select>
+            </div>
+            <div id="seasonTabs" class="season-tabs"></div>
+            <div id="episodesGrid" class="episodes-grid"></div>
+        </div>
+
+        <div id="resultsSection" class="results-section">
+            <div id="resultsGrid" class="results-grid"></div>
+        </div>
+
+        <div id="loading" class="loading">Loading...</div>
+        <div id="error" class="error"></div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/soap';
+        const ADMIN_STORAGE_KEY = 'alphyAdminAuth';
+
+        let currentContent = null;
+        let currentSeason = 1;
+        let currentEpisodeData = null;
+        let seasonData = {};
+        let apiToken = null;
+        let currentQualityId = null;
+        let currentTranslationId = null;
+        let qualitiesMap = {};
+        let translationsMap = {};
+        let player = null;
+
+        function getAdminAuth() {
+            try {
+                return JSON.parse(sessionStorage.getItem(ADMIN_STORAGE_KEY) || 'null');
+            } catch {
+                return null;
+            }
+        }
+
+        function setAdminAuth(user, pass) {
+            sessionStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify({ user, pass }));
+        }
+
+        async function requestAdminAccess() {
+            const user = prompt('Admin username');
+            if (!user) return false;
+            const pass = prompt('Admin password');
+            if (!pass) return false;
+
+            const response = await fetch('/api/admin/check', {
+                headers: {
+                    'X-Admin-User': user,
+                    'X-Admin-Pass': pass
+                }
+            });
+
+            if (response.ok) {
+                setAdminAuth(user, pass);
+                return true;
+            }
+            alert('Invalid admin credentials');
+            return false;
+        }
+
+        function initSourceToggle() {
+            const toggle = document.getElementById('sourceToggle');
+            if (!toggle) return;
+
+            toggle.addEventListener('change', async () => {
+                if (toggle.checked) {
+                    return;
+                }
+                const ok = await requestAdminAccess();
+                if (ok) {
+                    window.location.href = '/hdrezka';
+                } else {
+                    toggle.checked = true;
+                }
+            });
+        }
+
+        // Initialize Video.js player
+        function initPlayer() {
+            if (player) {
+                return;
+            }
+
+            player = videojs('videoPlayer', {
+                controls: true,
+                preload: 'auto',
+                responsive: true,
+                fill: true,
+                html5: {
+                    vhs: { overrideNative: true },
+                    nativeAudioTracks: false,
+                    nativeVideoTracks: false
+                }
+            });
+
+            player.on('loadedmetadata', function() {
+                const qualitySelect = document.getElementById('qualitySelect');
+                const qualityLevels = player.qualityLevels ? player.qualityLevels() : null;
+
+                if (qualityLevels && qualityLevels.length > 1) {
+                    qualitySelect.style.display = 'block';
+                    qualitySelect.innerHTML = '<option value="auto">Auto</option>';
+
+                    const resolutions = [];
+                    for (let i = 0; i < qualityLevels.length; i++) {
+                        const level = qualityLevels[i];
+                        const height = level.height;
+                        if (height && !resolutions.find(r => r.height === height)) {
+                            resolutions.push({ height, index: i, label: height + 'p' });
+                        }
+                    }
+
+                    resolutions.sort((a, b) => b.height - a.height);
+                    resolutions.forEach(res => {
+                        const opt = document.createElement('option');
+                        opt.value = res.height;
+                        opt.textContent = res.label;
+                        qualitySelect.appendChild(opt);
+                    });
+                } else {
+                    qualitySelect.style.display = 'none';
+                }
+
+                const audioTracks = player.audioTracks();
+                if (audioTracks && audioTracks.length > 1) {
+                    for (let i = 0; i < audioTracks.length; i++) {
+                        if (audioTracks[i].language === 'en' ||
+                            audioTracks[i].label.toLowerCase().includes('english')) {
+                            audioTracks[i].enabled = true;
+                        } else {
+                            audioTracks[i].enabled = false;
+                        }
+                    }
+                }
+
+                const textTracks = player.textTracks();
+                if (textTracks && textTracks.length > 0) {
+                    for (let i = 0; i < textTracks.length; i++) {
+                        if (textTracks[i].kind === 'subtitles' || textTracks[i].kind === 'captions') {
+                            if (textTracks[i].language === 'en' ||
+                                textTracks[i].label.toLowerCase().includes('english')) {
+                                textTracks[i].mode = 'showing';
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function changeQuality() {
+            if (!player) return;
+            const qualityLevels = player.qualityLevels ? player.qualityLevels() : null;
+            if (!qualityLevels) return;
+
+            const selectedHeight = document.getElementById('qualitySelect').value;
+            for (let i = 0; i < qualityLevels.length; i++) {
+                if (selectedHeight === 'auto') {
+                    qualityLevels[i].enabled = true;
+                } else {
+                    qualityLevels[i].enabled = (qualityLevels[i].height == selectedHeight);
+                }
+            }
+        }
+
+        async function search() {
+            const query = document.getElementById('searchInput').value.trim();
+            if (!query) return;
+
+            showLoading();
+            hideAll();
+
+            try {
+                const response = await fetch(`${API_BASE}/search?q=${encodeURIComponent(query)}`);
+                const data = await response.json();
+                displayResults(data.results);
+            } catch (e) {
+                showError('Search failed: ' + e.message);
+            }
+        }
+
+        function displayResults(results) {
+            hideLoading();
+            if (results.length === 0) {
+                document.getElementById('resultsGrid').innerHTML =
+                    '<div class="error">No results found</div>';
+            } else {
+                document.getElementById('resultsGrid').innerHTML = results.map(item => `
+                    <div class="result-card" onclick='selectContent(${JSON.stringify(item)})'>
+                        <img class="result-poster"
+                             src="${item.poster || ''}"
+                             alt="${item.title}"
+                             onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 200 300%22><rect fill=%22%23333%22 width=%22200%22 height=%22300%22/><text fill=%22%23666%22 x=%22100%22 y=%22150%22 text-anchor=%22middle%22>No Image</text></svg>'">
+                        <div class="result-info">
+                            <div class="result-title">${item.title}</div>
+                            <div class="result-meta">${item.type} ${item.year || ''}</div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            document.getElementById('resultsSection').classList.add('active');
+        }
+
+        async function selectContent(item) {
+            currentContent = item;
+            showLoading();
+            hideAll();
+
+            try {
+                if (item.type === 'movie') {
+                    await playMovie(item.id);
+                } else {
+                    await loadSeries(item.id);
+                }
+            } catch (e) {
+                showError('Failed to load: ' + e.message);
+            }
+        }
+
+        async function playMovie(movieId) {
+            const response = await fetch(`${API_BASE}/movie/${movieId}`);
+            const data = await response.json();
+
+            if (data.stream_url) {
+                playVideo(data.stream_url, data.title, 'hls', data.subtitles || {});
+            } else {
+                throw new Error('No stream URL found');
+            }
+        }
+
+        async function loadSeries(slug) {
+            const response = await fetch(`${API_BASE}/series/${slug}`);
+            const data = await response.json();
+
+            currentContent.seriesData = data;
+            seasonData = {};
+
+            hideLoading();
+            setupSeasons(data);
+        }
+
+        function setupSeasons(data) {
+            const seasons = data.seasons || [1];
+
+            document.getElementById('seasonTabs').innerHTML = seasons.map(s =>
+                `<button class="season-tab ${s === seasons[0] ? 'active' : ''}"
+                         onclick="selectSeason(${s})">Season ${s}</button>`
+            ).join('');
+
+            selectSeason(seasons[0]);
+            document.getElementById('episodeSection').classList.add('active');
+        }
+
+        async function selectSeason(season) {
+            currentSeason = season;
+
+            document.querySelectorAll('.season-tab').forEach(tab => {
+                tab.classList.toggle('active', tab.textContent === `Season ${season}`);
+            });
+
+            if (!seasonData[season]) {
+                const response = await fetch(`${API_BASE}/series/${currentContent.id}/season/${season}`);
+                seasonData[season] = await response.json();
+            }
+
+            const data = seasonData[season];
+            qualitiesMap = data.qualities || {};
+            translationsMap = data.translations || {};
+            apiToken = data.api_token;
+
+            const qualitySelect = document.getElementById('episodeQualitySelect');
+            qualitySelect.innerHTML = Object.entries(qualitiesMap).map(([id, name]) =>
+                `<option value="${id}">${name}</option>`
+            ).join('');
+
+            const translationSelect = document.getElementById('episodeTranslationSelect');
+            translationSelect.innerHTML = Object.entries(translationsMap).map(([id, name]) =>
+                `<option value="${id}">${name}</option>`
+            ).join('');
+
+            currentQualityId = Object.keys(qualitiesMap).find(k => qualitiesMap[k].toLowerCase().includes('full')) || Object.keys(qualitiesMap)[0];
+            currentTranslationId = translationsMap['sub'] ? 'sub' : Object.keys(translationsMap)[0];
+
+            if (currentQualityId) qualitySelect.value = currentQualityId;
+            if (currentTranslationId) translationSelect.value = currentTranslationId;
+
+            document.getElementById('episodesGrid').innerHTML = data.episodes.map(ep =>
+                `<button class="episode-btn" onclick='playEpisode(${JSON.stringify(ep)})'>Ep ${ep.episode}</button>`
+            ).join('');
+        }
+
+        function updateEpisodeSelection() {
+            currentQualityId = document.getElementById('episodeQualitySelect').value;
+            currentTranslationId = document.getElementById('episodeTranslationSelect').value;
+            if (currentEpisodeData) {
+                playEpisode(currentEpisodeData);
+            }
+        }
+
+        async function playEpisode(episodeData) {
+            currentEpisodeData = episodeData;
+
+            try {
+                const variants = episodeData.variants;
+                let variant = null;
+
+                if (variants[currentQualityId] && variants[currentQualityId][currentTranslationId]) {
+                    variant = variants[currentQualityId][currentTranslationId];
+                } else if (variants[currentQualityId]) {
+                    const translations = Object.keys(variants[currentQualityId]);
+                    if (translations.length > 0) {
+                        variant = variants[currentQualityId][translations[0]];
+                    }
+                } else {
+                    for (const qId of Object.keys(variants)) {
+                        const translations = Object.keys(variants[qId]);
+                        if (translations.length > 0) {
+                            variant = variants[qId][translations[0]];
+                            break;
+                        }
+                    }
+                }
+
+                if (!variant) {
+                    throw new Error('No stream available for this episode');
+                }
+
+                const params = new URLSearchParams({
+                    sid: variant.sid,
+                    hash: variant.hash,
+                    token: apiToken,
+                    quality: currentQualityId,
+                    translation: currentTranslationId
+                });
+
+                const response = await fetch(`${API_BASE}/stream/${variant.eid}?${params}`);
+                const data = await response.json();
+
+                if (data.stream_url) {
+                    const title = `${currentContent.title} S${currentSeason}E${episodeData.episode}`;
+                    playVideo(data.stream_url, title, data.stream_type, data.subtitles || {});
+                } else {
+                    throw new Error('No stream URL');
+                }
+            } catch (e) {
+                showError('Failed to play: ' + e.message);
+            }
+        }
+
+        function playVideo(url, title, streamType = 'hls', subtitles = {}) {
+            hideLoading();
+            initPlayer();
+
+            const remoteTracks = player.remoteTextTracks();
+            for (let i = remoteTracks.length - 1; i >= 0; i--) {
+                player.removeRemoteTextTrack(remoteTracks[i]);
+            }
+            const textTracks = player.textTracks();
+            for (let i = 0; i < textTracks.length; i++) {
+                textTracks[i].mode = 'disabled';
+            }
+
+            let mimeType = 'application/x-mpegURL';
+            if (streamType === 'mp4' || (!url.includes('.m3u8') && !url.includes('/hls/'))) {
+                mimeType = 'video/mp4';
+            }
+
+            player.src({ src: url, type: mimeType });
+
+            const subtitleEntries = Object.entries(subtitles || {});
+            let defaultSubtitleSet = false;
+            subtitleEntries.forEach(([label, src]) => {
+                if (!src) return;
+                const lower = label.toLowerCase();
+                let lang = 'und';
+                if (lower.includes('english') || lower.includes('eng')) {
+                    lang = 'en';
+                } else if (lower.includes('рус') || lower.includes('ru')) {
+                    lang = 'ru';
+                }
+                const track = player.addRemoteTextTrack({
+                    kind: 'subtitles',
+                    label: label,
+                    srclang: lang,
+                    src: src
+                }, false);
+                if (!defaultSubtitleSet && lang === 'en') {
+                    track.track.mode = 'showing';
+                    defaultSubtitleSet = true;
+                }
+            });
+
+            if (!defaultSubtitleSet && subtitleEntries.length > 0) {
+                const tracks = player.textTracks();
+                for (let i = 0; i < tracks.length; i++) {
+                    if (tracks[i].kind === 'subtitles' || tracks[i].kind === 'captions') {
+                        tracks[i].mode = 'showing';
+                        break;
+                    }
+                }
+            }
+
+            document.getElementById('playerTitle').textContent = title;
+            document.getElementById('playerSection').classList.add('active');
+            player.play().catch(() => {});
+        }
+
+        function changeSpeed() {
+            const speed = parseFloat(document.getElementById('speedSelect').value);
+            if (player) {
+                player.playbackRate(speed);
+            }
+        }
+
+        function hideAll() {
+            document.getElementById('playerSection').classList.remove('active');
+            document.getElementById('episodeSection').classList.remove('active');
+            document.getElementById('resultsSection').classList.remove('active');
+            document.getElementById('error').style.display = 'none';
+        }
+
+        function goHome() {
+            hideAll();
+            if (player) player.pause();
+            document.getElementById('searchInput').value = '';
+            currentContent = null;
+            seasonData = {};
+        }
+
+        function showLoading() {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('error').style.display = 'none';
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+        }
+
+        function showError(message) {
+            hideLoading();
+            const errorEl = document.getElementById('error');
+            errorEl.textContent = message;
+            errorEl.style.display = 'block';
+        }
+
+        document.getElementById('searchInput').addEventListener('keypress', e => {
+            if (e.key === 'Enter') search();
+        });
+
+        initSourceToggle();
+    </script>
+</body>
+</html>

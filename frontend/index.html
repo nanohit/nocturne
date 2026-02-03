@@ -64,6 +64,42 @@
             left: 0;
         }
 
+        .source-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: #bbb;
+        }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #333;
+            transition: 0.2s;
+            border-radius: 24px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.2s;
+            border-radius: 50%;
+        }
+        input:checked + .slider { background-color: #e50914; }
+        input:checked + .slider:before { transform: translateX(20px); }
+
         .search-box {
             flex: 1;
             display: flex;
@@ -399,6 +435,14 @@
     <div class="container">
         <header>
             <div class="logo" onclick="goHome()">alphy<span class="beta">beta</span></div>
+            <div class="source-toggle">
+                <span>soap4me</span>
+                <label class="switch">
+                    <input type="checkbox" id="sourceToggle">
+                    <span class="slider"></span>
+                </label>
+                <span>hdrezka</span>
+            </div>
             <div class="search-box">
                 <input type="text" id="searchInput" placeholder="Search movies and TV shows...">
                 <button onclick="search()">Search</button>
@@ -463,6 +507,79 @@
 
     <script>
         // CDN tokens are IP-bound - the IP that generates the token must fetch the content.
+        const ADMIN_STORAGE_KEY = 'alphyAdminAuth';
+
+        function getAdminAuth() {
+            try {
+                return JSON.parse(sessionStorage.getItem(ADMIN_STORAGE_KEY) || 'null');
+            } catch {
+                return null;
+            }
+        }
+
+        function setAdminAuth(user, pass) {
+            sessionStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify({ user, pass }));
+        }
+
+        function getAdminToken() {
+            const auth = getAdminAuth();
+            if (!auth?.user || !auth?.pass) return null;
+            return btoa(`${auth.user}:${auth.pass}`);
+        }
+
+        async function requestAdminAccess() {
+            const user = prompt('Admin username');
+            if (!user) return false;
+            const pass = prompt('Admin password');
+            if (!pass) return false;
+
+            const response = await fetch('/api/admin/check', {
+                headers: {
+                    'X-Admin-User': user,
+                    'X-Admin-Pass': pass
+                }
+            });
+
+            if (response.ok) {
+                setAdminAuth(user, pass);
+                return true;
+            }
+            alert('Invalid admin credentials');
+            return false;
+        }
+
+        async function ensureAdmin() {
+            const auth = getAdminAuth();
+            if (auth?.user && auth?.pass) return true;
+            const ok = await requestAdminAccess();
+            if (!ok) {
+                window.location.href = '/';
+                return false;
+            }
+            return true;
+        }
+
+        function adminFetch(url, options = {}) {
+            const auth = getAdminAuth();
+            const headers = new Headers(options.headers || {});
+            if (auth?.user && auth?.pass) {
+                headers.set('X-Admin-User', auth.user);
+                headers.set('X-Admin-Pass', auth.pass);
+            }
+            return fetch(url, { ...options, headers });
+        }
+
+        function initSourceToggle() {
+            const toggle = document.getElementById('sourceToggle');
+            if (!toggle) return;
+            toggle.checked = false;
+            toggle.addEventListener('change', () => {
+                if (toggle.checked) {
+                    window.location.href = '/';
+                }
+            });
+        }
+
         // On production (Render), backend generates token so backend must proxy all HLS.
         // Locally, direct CDN works because same machine generates and fetches.
         const API_BASE = '/api';
@@ -661,7 +778,7 @@
             currentContent = { url, title, poster };
 
             try {
-                const response = await fetch(`${API_BASE}/content?url=${encodeURIComponent(url)}`);
+                const response = await adminFetch(`${API_BASE}/content?url=${encodeURIComponent(url)}`);
                 const data = await response.json();
                 currentContent.info = data;
 
@@ -787,7 +904,7 @@
             hidePlayer();
 
             try {
-                const response = await fetch(`${API_BASE}/search?q=${encodeURIComponent(query)}`);
+                const response = await adminFetch(`${API_BASE}/search?q=${encodeURIComponent(query)}`);
                 const data = await response.json();
                 displayResults(data.results);
             } catch (e) {
@@ -827,7 +944,7 @@
             currentContent = item;
 
             try {
-                const response = await fetch(`${API_BASE}/content?url=${encodeURIComponent(item.url)}`);
+                const response = await adminFetch(`${API_BASE}/content?url=${encodeURIComponent(item.url)}`);
                 const data = await response.json();
 
                 currentContent.info = data;
@@ -933,8 +1050,10 @@
                 if (episode !== null) apiUrl += `&episode=${episode}`;
                 if (currentTranslation) apiUrl += `&translator_id=${currentTranslation}`;
                 if (isProduction) apiUrl += `&proxy=true`;
+                const adminToken = getAdminToken();
+                if (adminToken) apiUrl += `&admin_token=${encodeURIComponent(adminToken)}`;
 
-                const response = await fetch(apiUrl);
+                const response = await adminFetch(apiUrl);
                 const data = await response.json();
 
                 if (!data.stream_url) {
@@ -1164,6 +1283,9 @@
         document.getElementById('searchInput').addEventListener('keypress', e => {
             if (e.key === 'Enter') search();
         });
+
+        initSourceToggle();
+        ensureAdmin();
 
         // Show continue watching on page load
         renderContinueWatching();
