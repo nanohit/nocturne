@@ -240,6 +240,98 @@
         const API_BASE = '/api/soap';
         const ADMIN_STORAGE_KEY = 'alphyAdminAuth';
 
+        async function fetchTextWithTimeout(url, timeoutMs = 4000) {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), timeoutMs);
+            try {
+                const res = await fetch(url, { signal: controller.signal, cache: 'no-store' });
+                if (!res.ok) return null;
+                return await res.text();
+            } catch {
+                return null;
+            } finally {
+                clearTimeout(timeout);
+            }
+        }
+
+        function firstVariantUrl(masterText, baseUrl) {
+            const lines = masterText.split('\n');
+            for (let i = 0; i < lines.length; i++) {
+                if (lines[i].startsWith('#EXT-X-STREAM-INF')) {
+                    for (let j = i + 1; j < lines.length; j++) {
+                        const line = lines[j].trim();
+                        if (!line || line.startsWith('#')) continue;
+                        return line.startsWith('http') ? line : new URL(line, baseUrl).toString();
+                    }
+                }
+            }
+            // Fallback: first non-comment line
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (trimmed && !trimmed.startsWith('#')) {
+                    return trimmed.startsWith('http') ? trimmed : new URL(trimmed, baseUrl).toString();
+                }
+            }
+            return null;
+        }
+
+        function firstSegmentUrl(variantText, baseUrl) {
+            const lines = variantText.split('\n');
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (trimmed && !trimmed.startsWith('#')) {
+                    return trimmed.startsWith('http') ? trimmed : new URL(trimmed, baseUrl).toString();
+                }
+            }
+            return null;
+        }
+
+        async function probeHlsUrl(url) {
+            const master = await fetchTextWithTimeout(url);
+            if (!master) return false;
+
+            const variant = firstVariantUrl(master, url);
+            if (!variant) return false;
+
+            const variantText = await fetchTextWithTimeout(variant);
+            if (!variantText) return false;
+
+            const segment = firstSegmentUrl(variantText, variant);
+            if (!segment) return false;
+
+            try {
+                const res = await fetch(segment, {
+                    headers: { 'Range': 'bytes=0-1' },
+                    cache: 'no-store'
+                });
+                return res.status === 200 || res.status === 206;
+            } catch {
+                return false;
+            }
+        }
+
+        async function pickMovieStreamUrl(url) {
+            const candidates = [url];
+
+            // Try swapping cdn-fi -> cdn-r for RU IPs
+            if (url.includes('cdn-fi')) {
+                candidates.push(url.replace(/cdn-fi(\d+)/, 'cdn-r$1'));
+            } else if (url.includes('cdn-r')) {
+                candidates.push(url.replace(/cdn-r(\d+)/, 'cdn-fi$1'));
+            }
+
+            const seen = new Set();
+            for (const candidate of candidates) {
+                if (!candidate || seen.has(candidate)) continue;
+                seen.add(candidate);
+                if (await probeHlsUrl(candidate)) {
+                    return candidate;
+                }
+            }
+
+            return url;
+        }
+
         let currentContent = null;
         let currentSeason = 1;
         let currentEpisodeData = null;
@@ -448,7 +540,8 @@
             const data = await response.json();
 
             if (data.stream_url) {
-                const proxied = `/api/soap/hls?src=${encodeURIComponent(data.stream_url)}`;
+                const streamUrl = await pickMovieStreamUrl(data.stream_url);
+                const proxied = `/api/soap/hls?src=${encodeURIComponent(streamUrl)}`;
                 playVideo(proxied, data.title, 'hls', data.subtitles || {});
             } else {
                 throw new Error('No stream URL found');
