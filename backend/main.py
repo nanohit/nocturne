@@ -354,6 +354,38 @@ async def proxy_subtitle(src: str):
     return Response(content=vtt_text, media_type="text/vtt")
 
 
+@app.get("/api/soap/hls")
+async def proxy_soap_hls(src: str, request: Request):
+    """Proxy only HLS playlists; segments stay on CDN."""
+    if not src:
+        raise HTTPException(status_code=400, detail="Missing playlist source")
+
+    parsed = urlparse(src)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc.endswith(ALLOWED_SOAP_CDN_HOST_SUFFIX):
+        raise HTTPException(status_code=400, detail="Invalid playlist source")
+
+    client = await get_soap_client()
+    resp = await client.get(src)
+    if resp.status_code != 200:
+        raise HTTPException(status_code=resp.status_code, detail="Playlist not found")
+
+    content_type = resp.headers.get("content-type", "")
+    if "mpegurl" in content_type or src.endswith(".m3u8"):
+        base_url = src.rsplit("/", 1)[0] + "/"
+        rewritten = rewrite_soap_m3u8(resp.text, base_url)
+        return Response(
+            content=rewritten,
+            media_type="application/x-mpegURL",
+            headers={"Cache-Control": "no-cache", "Access-Control-Allow-Origin": "*"},
+        )
+
+    return Response(
+        content=resp.content,
+        media_type=content_type or "application/octet-stream",
+        headers={"Access-Control-Allow-Origin": "*"},
+    )
+
+
 @app.post("/api/ajax-proxy")
 async def ajax_proxy(request: Request):
     """
@@ -477,6 +509,7 @@ def extract_api_token(html: str) -> Optional[str]:
 
 
 ALLOWED_SUBTITLE_HOSTS = {"soap4youand.me", "www.soap4youand.me"}
+ALLOWED_SOAP_CDN_HOST_SUFFIX = ".soap4youand.me"
 
 
 def srt_to_vtt(srt_text: str) -> str:
@@ -499,6 +532,43 @@ def srt_to_vtt(srt_text: str) -> str:
 def build_subtitle_proxy_url(src: str) -> str:
     """Build a same-origin proxy URL for subtitle sources."""
     return f"/api/subtitle?src={quote(src, safe='')}"
+
+
+def build_hls_proxy_url(src: str) -> str:
+    """Build a same-origin proxy URL for HLS playlist sources."""
+    return f"/api/soap/hls?src={quote(src, safe='')}"
+
+
+def rewrite_soap_m3u8(content: str, base_url: str) -> str:
+    """Rewrite playlist URIs to go through our proxy; keep segments direct."""
+    lines = content.splitlines()
+    rewritten = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("#EXT-X-MEDIA") and "URI=\"" in stripped:
+            def replace_uri(match):
+                uri = match.group(1)
+                if not uri.startswith("http"):
+                    uri = urljoin(base_url, uri)
+                # Proxy nested playlists
+                if ".m3u8" in uri:
+                    uri = build_hls_proxy_url(uri)
+                return f'URI="{uri}"'
+
+            rewritten.append(re.sub(r'URI="([^"]+)"', replace_uri, stripped))
+            continue
+
+        if stripped and not stripped.startswith("#"):
+            if not stripped.startswith("http"):
+                stripped = urljoin(base_url, stripped)
+            # Proxy nested playlists, leave segments direct
+            if ".m3u8" in stripped:
+                stripped = build_hls_proxy_url(stripped)
+            rewritten.append(stripped)
+        else:
+            rewritten.append(line)
+
+    return "\n".join(rewritten)
 
 
 def parse_search_results(html: str) -> list:

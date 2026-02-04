@@ -448,7 +448,8 @@
             const data = await response.json();
 
             if (data.stream_url) {
-                playVideo(data.stream_url, data.title, 'hls', data.subtitles || {});
+                const proxied = `/api/soap/hls?src=${encodeURIComponent(data.stream_url)}`;
+                playVideo(proxied, data.title, 'hls', data.subtitles || {});
             } else {
                 throw new Error('No stream URL found');
             }
