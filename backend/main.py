@@ -355,10 +355,13 @@ async def proxy_subtitle(src: str):
 
 
 @app.get("/api/soap/hls")
-async def proxy_soap_hls(src: str, request: Request):
+async def proxy_soap_hls(src: str, request: Request, cdn: Optional[str] = None):
     """Proxy only HLS playlists; segments stay on CDN."""
     if not src:
         raise HTTPException(status_code=400, detail="Missing playlist source")
+
+    if cdn:
+        print(f"SOAP HLS playlist proxy: cdn={cdn}")
 
     parsed = urlparse(src)
     if parsed.scheme not in ("http", "https") or not parsed.netloc.endswith(ALLOWED_SOAP_CDN_HOST_SUFFIX):
@@ -372,7 +375,7 @@ async def proxy_soap_hls(src: str, request: Request):
     content_type = resp.headers.get("content-type", "")
     if "mpegurl" in content_type or src.endswith(".m3u8"):
         base_url = src.rsplit("/", 1)[0] + "/"
-        rewritten = rewrite_soap_m3u8(resp.text, base_url)
+        rewritten = rewrite_soap_m3u8(resp.text, base_url, cdn)
         return Response(
             content=rewritten,
             media_type="application/x-mpegURL",
@@ -534,12 +537,26 @@ def build_subtitle_proxy_url(src: str) -> str:
     return f"/api/subtitle?src={quote(src, safe='')}"
 
 
-def build_hls_proxy_url(src: str) -> str:
+def build_hls_proxy_url(src: str, cdn: Optional[str] = None) -> str:
     """Build a same-origin proxy URL for HLS playlist sources."""
-    return f"/api/soap/hls?src={quote(src, safe='')}"
+    suffix = f"&cdn={quote(cdn, safe='')}" if cdn else ""
+    return f"/api/soap/hls?src={quote(src, safe='')}{suffix}"
 
 
-def rewrite_soap_m3u8(content: str, base_url: str) -> str:
+def _rewrite_cdn_host(url: str, cdn: Optional[str]) -> str:
+    if not cdn:
+        return url
+    cdn = cdn.strip().lower()
+    if cdn not in ("cdn-fi", "cdn-r"):
+        return url
+    return re.sub(
+        r'://cdn-(fi|r)(\d+)\.soap4youand\.me',
+        lambda m: f"://{cdn}{m.group(2)}.soap4youand.me",
+        url
+    )
+
+
+def rewrite_soap_m3u8(content: str, base_url: str, cdn: Optional[str] = None) -> str:
     """Rewrite playlist URIs to go through our proxy; keep segments direct."""
     lines = content.splitlines()
     rewritten = []
@@ -552,7 +569,7 @@ def rewrite_soap_m3u8(content: str, base_url: str) -> str:
                     uri = urljoin(base_url, uri)
                 # Proxy nested playlists
                 if ".m3u8" in uri:
-                    uri = build_hls_proxy_url(uri)
+                    uri = build_hls_proxy_url(uri, cdn)
                 return f'URI="{uri}"'
 
             rewritten.append(re.sub(r'URI="([^"]+)"', replace_uri, stripped))
@@ -563,7 +580,9 @@ def rewrite_soap_m3u8(content: str, base_url: str) -> str:
                 stripped = urljoin(base_url, stripped)
             # Proxy nested playlists, leave segments direct
             if ".m3u8" in stripped:
-                stripped = build_hls_proxy_url(stripped)
+                stripped = build_hls_proxy_url(stripped, cdn)
+            else:
+                stripped = _rewrite_cdn_host(stripped, cdn)
             rewritten.append(stripped)
         else:
             rewritten.append(line)
