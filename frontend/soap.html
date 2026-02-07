@@ -9,90 +9,244 @@
     <!-- Video.js for HLS playback -->
     <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet">
     <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+
+    <!-- IBM Plex Sans -->
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="/static/admin-lists.css" rel="stylesheet">
     
     <style>
+        :root {
+            --bg: #000;
+            --panel: #0f0f0f;
+            --panel-strong: #141414;
+            --stroke: #232323;
+            --text: #f5f5f5;
+            --muted: #6f6f6f;
+            --muted-strong: #8a8a8a;
+            --accent: #ffff00;
+            --card-min: 145px;
+            --card-gap: 22px;
+            --card-size: 145px;
+            --hover-stroke: 3px;
+        }
+
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #0a0a0a;
-            color: #fff;
+            font-family: 'IBM Plex Sans', sans-serif;
+            background: var(--bg);
+            color: var(--text);
             min-height: 100vh;
         }
-        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .container { max-width: 1280px; margin: 0 auto; padding: 16px 32px 44px; }
 
         header {
             display: flex;
             align-items: center;
-            gap: 20px;
-            margin-bottom: 30px;
-            padding-bottom: 20px;
-            border-bottom: 1px solid #222;
-            flex-wrap: wrap;
+            gap: 28px;
+            margin-bottom: 36px;
         }
-        .logo {
-            font-family: monospace;
-            font-size: 28px;
-            font-weight: 700;
-            color: #e50914;
+        .search-stick-wrap {
+            flex: 1;
+            position: relative;
+            margin-top: -10px;
+        }
+        .search-stick-wrap.fixed {
+            position: fixed;
+            top: var(--search-top, 0px);
+            left: var(--search-left, 0px);
+            width: var(--search-width, auto);
+            z-index: 20;
+        }
+        .search-stick-wrap.fixed::before {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: calc(var(--search-left, 0px) - 10px);
+            width: calc(var(--search-width, 0px) + 20px);
+            height: var(--search-bg-height, 0px);
+            background: #000;
+            border-bottom-left-radius: 18px;
+            border-bottom-right-radius: 18px;
+            box-shadow: 0 14px 30px rgba(0, 0, 0, 0.6);
+            z-index: -1;
+        }
+        .brand {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-width: 180px;
+        }
+        .logo-btn {
+            display: inline-flex;
+            align-items: center;
+            padding: 0;
+            background: transparent;
+            border: none;
             cursor: pointer;
         }
-        .search-box { flex: 1; display: flex; gap: 10px; min-width: 260px; }
+        .logo-image {
+            height: 72px;
+            width: auto;
+            max-width: 220px;
+            object-fit: contain;
+            filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.6));
+        }
+        .search-box { flex: 1; display: flex; align-items: center; gap: 14px; }
         .search-box input {
             flex: 1;
-            padding: 12px 16px;
-            border: none;
-            border-radius: 4px;
-            background: #222;
-            color: #fff;
-            font-size: 16px;
+            padding: 15px 19px;
+            border-radius: 14px;
+            border: 1px solid #1d1d1d;
+            background: linear-gradient(180deg, #111 0%, #0b0b0b 100%);
+            color: var(--text);
+            font-size: 19px;
+            font-weight: 500;
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
         }
-        .search-box input:focus { outline: 2px solid #e50914; }
-        .search-box button {
-            padding: 12px 24px;
-            border: none;
-            border-radius: 4px;
-            background: #e50914;
-            color: #fff;
-            font-size: 16px;
+        .search-box input::placeholder { color: #555; }
+        .search-box input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(255, 255, 0, 0.14);
+        }
+        .search-button {
+            width: 54px;
+            height: 54px;
+            border-radius: 14px;
+            border: 1px solid #2a2a2a;
+            background: #0f0f0f;
+            color: var(--accent);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
             cursor: pointer;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
         }
-        .search-box button:hover { background: #b2070f; }
+        .search-button:hover {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(255, 255, 0, 0.12), 0 8px 20px rgba(0, 0, 0, 0.55);
+            transform: translateY(-1px);
+        }
+        .search-button svg { width: 24px; height: 24px; }
+
+        .bookmark-toggle {
+            width: 54px;
+            height: 54px;
+            border-radius: 14px;
+            border: 1px solid #2a2a2a;
+            background: #0f0f0f;
+            color: var(--accent);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background 0.2s ease, color 0.2s ease;
+        }
+        .bookmark-toggle {
+            position: relative;
+        }
+        .bookmark-toggle svg { width: 20px; height: 20px; }
+        .bookmark-count {
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            min-width: 28px;
+            height: 24px;
+            padding: 0 8px;
+            border-radius: 12px;
+            background: #151515;
+            border: 1px solid #2b2b2b;
+            color: var(--accent);
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transform: scale(0.9);
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+        .bookmark-count.visible {
+            opacity: 1;
+            transform: scale(1);
+        }
+        .bookmark-count.bounce {
+            animation: badge-bounce 0.5s ease;
+        }
+        @keyframes badge-bounce {
+            0% { transform: translateY(0) scale(1); }
+            30% { transform: translateY(-6px) scale(1.05); }
+            60% { transform: translateY(2px) scale(0.98); }
+            100% { transform: translateY(0) scale(1); }
+        }
+        .bookmark-toggle.active {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(255, 255, 0, 0.12);
+        }
 
         .source-toggle {
-            display: flex;
+            display: inline-flex;
             align-items: center;
             gap: 8px;
-            font-size: 12px;
-            color: #bbb;
+            font-size: 11px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--muted);
+            opacity: 0.5;
         }
         .switch {
             position: relative;
             display: inline-block;
-            width: 44px;
-            height: 24px;
+            width: 34px;
+            height: 18px;
         }
         .switch input { opacity: 0; width: 0; height: 0; }
         .slider {
             position: absolute;
             cursor: pointer;
             top: 0; left: 0; right: 0; bottom: 0;
-            background-color: #333;
+            background-color: #0e0e0e;
+            border: 1px solid #1d1d1d;
             transition: 0.2s;
-            border-radius: 24px;
+            border-radius: 999px;
         }
         .slider:before {
             position: absolute;
             content: "";
-            height: 18px;
-            width: 18px;
-            left: 3px;
-            bottom: 3px;
-            background-color: white;
+            height: 12px;
+            width: 12px;
+            left: 2px;
+            bottom: 2px;
+            background-color: #2d2d2d;
             transition: 0.2s;
             border-radius: 50%;
         }
-        input:checked + .slider { background-color: #e50914; }
-        input:checked + .slider:before { transform: translateX(20px); }
+        input:checked + .slider {
+            background-color: #111;
+            border-color: #2a2a2a;
+        }
+        input:checked + .slider:before {
+            transform: translateX(16px);
+            background-color: var(--accent);
+            box-shadow: 0 0 10px rgba(255, 255, 0, 0.5);
+        }
+
+        @media (max-width: 900px) {
+            header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .brand {
+                flex-direction: row;
+                align-items: center;
+                justify-content: space-between;
+            }
+
+            .source-toggle {
+                justify-content: flex-end;
+            }
+        }
 
         /* Player Section */
         .player-section { display: none; margin-bottom: 30px; }
@@ -109,9 +263,9 @@
         .player-controls { display: flex; gap: 10px; flex-wrap: wrap; }
         .player-controls select {
             padding: 8px 12px;
-            border: none;
-            border-radius: 4px;
-            background: #222;
+            border: 1px solid #1b1b1b;
+            border-radius: 10px;
+            background: #0f0f0f;
             color: #fff;
         }
         .video-container {
@@ -134,13 +288,16 @@
         }
         .season-tab {
             padding: 8px 16px;
-            border: none;
-            border-radius: 4px;
-            background: #222;
+            border: 1px solid #1b1b1b;
+            border-radius: 10px;
+            background: #0f0f0f;
             color: #fff;
             cursor: pointer;
         }
-        .season-tab.active { background: #e50914; }
+        .season-tab.active {
+            background: var(--accent);
+            color: #000;
+        }
         .episodes-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
@@ -148,56 +305,403 @@
         }
         .episode-btn {
             padding: 12px;
-            border: none;
-            border-radius: 4px;
-            background: #222;
+            border: 1px solid #1b1b1b;
+            border-radius: 10px;
+            background: #0f0f0f;
             color: #fff;
             cursor: pointer;
         }
-        .episode-btn.active { background: #e50914; }
+        .episode-btn.active {
+            background: var(--accent);
+            color: #000;
+        }
 
         /* Results */
         .results-section { display: none; }
         .results-section.active { display: block; }
+        .results-title {
+            font-size: 19px;
+            color: var(--text);
+            margin: 6px 0 16px;
+            letter-spacing: 0.02em;
+        }
+        .continue-section { display: none; margin: 12px 0 32px; }
+        .continue-section.active { display: block; }
+        .continue-header {
+            font-size: 24px;
+            color: var(--text);
+            margin-bottom: 16px;
+            letter-spacing: 0.02em;
+        }
+        .continue-row {
+            position: relative;
+            display: flex;
+            align-items: center;
+            --continue-size: var(--card-min);
+            margin-left: -8px;
+            margin-right: -8px;
+        }
+        .continue-track {
+            display: flex;
+            align-items: flex-start;
+            gap: var(--card-gap);
+            overflow-x: auto;
+            overflow-y: visible;
+            scrollbar-width: none;
+            scroll-behavior: smooth;
+            padding: 8px 8px 12px;
+            scroll-padding: 8px;
+            width: 100%;
+        }
+        .continue-track::-webkit-scrollbar {
+            display: none;
+        }
+        .continue-card {
+            cursor: pointer;
+            position: relative;
+            flex: 0 0 auto;
+            width: var(--continue-size);
+        }
+        .continue-card.wide {
+            width: calc(var(--continue-size) * 1.78);
+        }
+        .continue-media {
+            position: relative;
+            width: 100%;
+            height: var(--continue-size);
+            border-radius: 14px;
+            overflow: hidden;
+            background: #111;
+            border: 1px solid #1b1b1b;
+            box-sizing: border-box;
+        }
+        .continue-card:hover .continue-media {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 var(--hover-stroke) rgba(255, 255, 0, 0.9);
+        }
+        .continue-media img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            filter: brightness(0.78);
+        }
+        .continue-overlay {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: 26%;
+            background: rgba(0, 0, 0, 0.6);
+        }
+        .continue-meta {
+            position: absolute;
+            left: 12px;
+            right: 12px;
+            bottom: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 13px;
+            color: var(--accent);
+        }
+        .continue-meta.wide-meta {
+            justify-content: flex-start;
+        }
+        .continue-progress {
+            position: absolute;
+            left: 12px;
+            right: 12px;
+            bottom: 6px;
+            height: 5px;
+            background: rgba(0, 0, 0, 0.35);
+            border-radius: 999px;
+            overflow: hidden;
+        }
+        .continue-progress-bar {
+            height: 100%;
+            background: var(--accent);
+            width: 0%;
+        }
+        .continue-title {
+            margin-top: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text);
+        }
+        .continue-sub {
+            font-size: 11px;
+            color: var(--muted-strong);
+            margin-top: 4px;
+        }
+        .continue-remove {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 1px solid rgba(255, 255, 255, 0.45);
+            background: rgba(0, 0, 0, 0.4);
+            color: #fff;
+            font-size: 16px;
+            line-height: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 2;
+        }
+        .continue-nav {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            border: 1px solid #2b2b2b;
+            background: #0f0f0f;
+            color: #fff;
+            font-size: 26px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+            position: absolute;
+            top: calc(var(--continue-size) * 0.5);
+            transform: translateY(-50%);
+            z-index: 2;
+        }
+        .continue-nav.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .continue-nav.prev { left: -10px; }
+        .continue-nav.next { right: -10px; }
+
+        .continue-play {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 0;
+            height: 0;
+            border-top: 20px solid transparent;
+            border-bottom: 20px solid transparent;
+            border-left: 34px solid var(--accent);
+            filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.6));
+            opacity: 0.95;
+        }
         .results-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 20px;
+            grid-template-columns: repeat(auto-fill, minmax(var(--card-min), 1fr));
+            gap: var(--card-gap);
         }
         .result-card {
-            background: #1a1a1a;
-            border-radius: 8px;
-            overflow: hidden;
+            background: transparent;
+            border-radius: 14px;
             cursor: pointer;
-            transition: transform 0.2s;
+            transition: box-shadow 0.2s ease;
+            text-align: center;
         }
-        .result-card:hover { transform: scale(1.03); }
-        .result-poster { width: 100%; height: 300px; object-fit: cover; }
-        .result-info { padding: 10px; }
-        .result-title { font-size: 14px; margin-bottom: 5px; }
-        .result-meta { font-size: 12px; color: #888; }
+        .result-card:hover {
+            box-shadow: none;
+        }
+        .result-media {
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            border-radius: 14px;
+            border: 1px solid #1b1b1b;
+            background: #111;
+            position: relative;
+            overflow: hidden;
+        }
+        .bookmark-btn {
+            position: absolute;
+            top: -21px;
+            right: 8px;
+            width: 52px;
+            height: 72px;
+            border-radius: 0 0 12px 12px;
+            border: none;
+            background: transparent;
+            color: #fff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            z-index: 4;
+            cursor: pointer;
+            transition: color 0.2s ease, opacity 0.2s ease;
+            pointer-events: none;
+            padding: 0;
+        }
+        .bookmark-btn svg {
+            width: 80%;
+            height: 80%;
+            fill: transparent;
+            stroke: currentColor;
+            stroke-width: 2.2;
+        }
+        .result-card:hover .bookmark-btn {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .result-card.bookmarked .bookmark-btn {
+            opacity: 1;
+            pointer-events: auto;
+            color: var(--accent);
+        }
+        .result-card.bookmarked:hover .bookmark-btn {
+            color: #fff;
+        }
+        .result-card.bookmarked .bookmark-btn svg {
+            fill: currentColor;
+        }
+        .result-card:hover .result-media {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 var(--hover-stroke) rgba(255, 255, 0, 0.9);
+        }
+        .result-poster {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            transition: filter 0.2s ease;
+        }
+        .result-card:hover .result-poster {
+            filter: blur(2px) brightness(0.7);
+        }
+        .result-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            background: rgba(0, 0, 0, 0.55);
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            pointer-events: none;
+        }
+        .result-card:hover .result-overlay {
+            opacity: 1;
+        }
+        .overlay-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            transform: translateY(12px);
+        }
+        .result-card.meta-ready .overlay-content {
+            opacity: 1;
+        }
+        .overlay-ratings {
+            position: relative;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: auto auto;
+            column-gap: 8px;
+            row-gap: 4px;
+            align-items: center;
+            text-align: center;
+            min-width: 120px;
+        }
+        .overlay-divider-line {
+            position: absolute;
+            left: 50%;
+            top: 0;
+            bottom: 0;
+            width: 1px;
+            background: rgba(255, 255, 255, 0.35);
+            transform: translateX(-50%);
+        }
+        .result-card:not(.dual-ratings) .overlay-divider-line {
+            display: none;
+        }
+        .overlay-label {
+            color: #f2f2f2;
+            font-size: 12px;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+        }
+        .overlay-value {
+            font-size: 30px;
+            font-weight: 600;
+            color: var(--accent);
+        }
+        .overlay-duration {
+            font-size: 16px;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+            color: #f2f2f2;
+        }
+        .result-card.no-duration .overlay-duration {
+            display: none;
+        }
+        .result-info { padding: 10px 4px 0; }
+        .result-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 4px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .result-meta { font-size: 11px; color: var(--muted-strong); }
 
         .loading { display: none; text-align: center; padding: 20px; }
-        .error { display: none; color: #e50914; text-align: center; padding: 20px; }
+        .error { display: none; color: var(--accent); text-align: center; padding: 20px; }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <div class="logo" onclick="goHome()">alphy</div>
-            <div class="source-toggle">
-                <span>soap4me</span>
-                <label class="switch">
-                    <input type="checkbox" id="sourceToggle" checked>
-                    <span class="slider"></span>
-                </label>
-                <span>hdrezka</span>
+            <div class="brand">
+                <button class="logo-btn" onclick="goHome()" aria-label="Go home">
+                    <img class="logo-image" src="/static/Logo.png" alt="alphy">
+                </button>
+                <div class="source-toggle">
+                    <span>CDN</span>
+                    <label class="switch">
+                        <input type="checkbox" id="sourceToggle" checked>
+                        <span class="slider"></span>
+                    </label>
+                    <span>Proxy</span>
+                </div>
             </div>
-            <div class="search-box">
-                <input type="text" id="searchInput" placeholder="Search movies and TV shows..." autofocus>
-                <button onclick="search()">Search</button>
+            <div id="searchStickyWrap" class="search-stick-wrap">
+                <div class="search-stick-inner">
+                    <div class="search-box">
+                        <input type="text" id="searchInput" placeholder="название фильма или сериала..." autofocus>
+                        <button class="search-button" type="button" onclick="search()" aria-label="Search">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <circle cx="11" cy="11" r="7"></circle>
+                                <line x1="16.65" y1="16.65" x2="21" y2="21"></line>
+                            </svg>
+                        </button>
+                        <button class="bookmark-toggle" type="button" onclick="toggleBookmarks()" aria-label="Bookmarks">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z"></path>
+                            </svg>
+                            <span class="bookmark-count" id="bookmarkCount">0</span>
+                        </button>
+                    </div>
+                </div>
             </div>
         </header>
+
+        <div id="continueSection" class="continue-section">
+            <h2 class="continue-header">Продолжить просмотр</h2>
+            <div class="continue-row">
+                <button class="continue-nav prev" type="button" aria-label="Scroll left">&#8249;</button>
+                <div id="continueTrack" class="continue-track"></div>
+                <button class="continue-nav next" type="button" aria-label="Scroll right">&#8250;</button>
+            </div>
+        </div>
 
         <div id="playerSection" class="player-section">
             <div class="player-header">
@@ -229,16 +733,42 @@
         </div>
 
         <div id="resultsSection" class="results-section">
+            <h2 id="resultsTitle" class="results-title">Результаты</h2>
             <div id="resultsGrid" class="results-grid"></div>
         </div>
+
+        <div id="bookmarksSection" class="results-section">
+            <h2 class="results-title">Bookmarks</h2>
+            <div id="bookmarksGrid" class="results-grid"></div>
+        </div>
+
+        <div id="adminListsSection" class="lists-section">
+            <div class="lists-header">
+                <div class="lists-actions admin-only">
+                    <button id="addListBtn" class="list-add-btn" type="button">+ создать список</button>
+                </div>
+            </div>
+            <div id="listsContainer"></div>
+        </div>
+
+        <div id="adminEntry" class="admin-entry">admin entry</div>
 
         <div id="loading" class="loading">Loading...</div>
         <div id="error" class="error"></div>
     </div>
 
+    <script src="/static/js/continue.js"></script>
+    <script src="/static/js/admin-lists.js"></script>
     <script>
         const API_BASE = '/api/soap';
         const ADMIN_STORAGE_KEY = 'alphyAdminAuth';
+        const metaCache = new Map();
+        const metaInflight = new Map();
+        const META_PREFETCH_LIMIT = 4;
+        let metaPrefetchQueue = [];
+        let metaPrefetchActive = 0;
+        const BOOKMARKS_KEY = 'alphy_bookmarks_v1';
+        let resultsWereVisible = false;
 
         function getPreferredMovieCdn() {
             const lang = (navigator.language || '').toLowerCase();
@@ -249,10 +779,306 @@
             return 'cdn-fi';
         }
 
+        function getSoapMetaUrl(item) {
+            if (item?.url) return item.url;
+            if (item?.type === 'movie' && item?.id) return `/movies/${item.id}/`;
+            if (item?.type === 'series' && item?.id) return `/soap/${item.id}/`;
+            return null;
+        }
+
+        async function fetchSoapMeta(metaUrl) {
+            if (!metaUrl) return null;
+            if (metaCache.has(metaUrl)) return metaCache.get(metaUrl);
+            if (metaInflight.has(metaUrl)) return metaInflight.get(metaUrl);
+
+            const request = fetch(`${API_BASE}/meta?url=${encodeURIComponent(metaUrl)}`)
+                .then(response => response.ok ? response.json() : null)
+                .catch(() => null)
+                .then(data => {
+                    metaCache.set(metaUrl, data || {});
+                    metaInflight.delete(metaUrl);
+                    return data;
+                });
+
+            metaInflight.set(metaUrl, request);
+            return request;
+        }
+
+        function updateOverlay(card, meta) {
+            if (!card) return;
+            const imdbEl = card.querySelector('.overlay-imdb');
+            const kpEl = card.querySelector('.overlay-kp');
+            const durationEl = card.querySelector('.overlay-duration');
+
+            const imdb = meta?.imdb || '';
+            const kp = meta?.kp || '';
+            const duration = meta?.duration || '';
+
+            if (imdbEl) imdbEl.textContent = imdb;
+            if (kpEl) kpEl.textContent = kp;
+            if (durationEl) durationEl.textContent = duration;
+
+            if (duration) {
+                card.classList.remove('no-duration');
+            } else {
+                card.classList.add('no-duration');
+            }
+
+            if (imdb && kp) {
+                card.classList.add('dual-ratings');
+            } else {
+                card.classList.remove('dual-ratings');
+            }
+
+            if (imdb || kp || duration) {
+                card.classList.add('meta-ready');
+            }
+        }
+
+        function encodeItem(item) {
+            try {
+                return encodeURIComponent(JSON.stringify(item));
+            } catch {
+                return '';
+            }
+        }
+
+        function decodeItem(value) {
+            if (!value) return null;
+            try {
+                return JSON.parse(decodeURIComponent(value));
+            } catch {
+                return null;
+            }
+        }
+
+        function buildCardHtml(item) {
+            const metaText = item.year ? item.year : (item.type === 'movie' ? 'Movie' : 'Series');
+            const metaUrl = getSoapMetaUrl(item) || '';
+            const bookmarked = isBookmarked(item);
+            const cardClass = bookmarked ? 'result-card bookmarked' : 'result-card';
+            const encoded = encodeItem(item);
+            return `
+                <div class="${cardClass}" data-meta-url="${metaUrl}" data-item="${encoded}">
+                    <div class="result-media">
+                        <button class="admin-add-btn" type="button" aria-label="Add to list">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                        </button>
+                        <button class="bookmark-btn" type="button" aria-label="Bookmark">
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z"></path>
+                            </svg>
+                        </button>
+                        <img class="result-poster"
+                             src="${item.poster || 'https://via.placeholder.com/300x300?text=No+Image'}"
+                             alt="${item.title}"
+                             onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 300 300%22><rect fill=%22%23111%22 width=%22300%22 height=%22300%22/><text fill=%22%23555%22 x=%22150%22 y=%22160%22 text-anchor=%22middle%22>No Image</text></svg>'">
+                        <div class="result-overlay">
+                            <div class="overlay-content">
+                                <div class="overlay-ratings">
+                                    <span class="overlay-divider-line"></span>
+                                    <span class="overlay-label">IMDB</span>
+                                    <span class="overlay-label">KP</span>
+                                    <span class="overlay-value overlay-imdb"></span>
+                                    <span class="overlay-value overlay-kp"></span>
+                                </div>
+                                <div class="overlay-duration"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="result-info">
+                        <div class="result-title">${item.title}</div>
+                        <div class="result-meta">${metaText}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderCardGrid(grid, items) {
+            grid.innerHTML = items.map(item => buildCardHtml(item)).join('');
+
+            const cards = grid.querySelectorAll('.result-card');
+            cards.forEach(card => {
+                card.addEventListener('mouseenter', () => ensureMetaForCard(card));
+                card.addEventListener('click', () => {
+                    const item = decodeItem(card.dataset.item);
+                    if (!item) return;
+                    selectContent(item);
+                });
+            });
+
+            grid.querySelectorAll('.bookmark-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const card = btn.closest('.result-card');
+                    if (!card) return;
+                    const item = decodeItem(card.dataset.item);
+                    if (!item) return;
+                    const bookmarked = toggleBookmark(item);
+                    card.classList.toggle('bookmarked', bookmarked);
+                    if (document.getElementById('bookmarksSection').classList.contains('active')) {
+                        renderBookmarks();
+                    }
+                });
+            });
+
+            queueMetaPrefetch(items.slice(0, 6));
+        }
+
+        function ensureMetaForCard(card) {
+            const metaUrl = card?.dataset?.metaUrl;
+            if (!metaUrl) return;
+            if (card.dataset.metaLoaded === 'true') return;
+            fetchSoapMeta(metaUrl).then(meta => {
+                updateOverlay(card, meta);
+                card.dataset.metaLoaded = 'true';
+            });
+        }
+
+        function queueMetaPrefetch(items) {
+            metaPrefetchQueue = items.slice();
+            pumpMetaPrefetch();
+        }
+
+        function pumpMetaPrefetch() {
+            while (metaPrefetchActive < META_PREFETCH_LIMIT && metaPrefetchQueue.length > 0) {
+                const item = metaPrefetchQueue.shift();
+                const metaUrl = getSoapMetaUrl(item);
+                if (!metaUrl) continue;
+                metaPrefetchActive += 1;
+                fetchSoapMeta(metaUrl).finally(() => {
+                    metaPrefetchActive -= 1;
+                    pumpMetaPrefetch();
+                });
+            }
+        }
+
+        function getBookmarks() {
+            try {
+                return JSON.parse(localStorage.getItem(BOOKMARKS_KEY) || '[]');
+            } catch {
+                return [];
+            }
+        }
+
+        function saveBookmarks(items) {
+            localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(items));
+        }
+
+        function updateBookmarkCount(animate = false) {
+            const count = getBookmarks().length;
+            const badge = document.getElementById('bookmarkCount');
+            if (!badge) return;
+            badge.textContent = count;
+            if (count > 0) {
+                badge.classList.add('visible');
+                if (animate) {
+                    badge.classList.remove('bounce');
+                    void badge.offsetWidth;
+                    badge.classList.add('bounce');
+                }
+            } else {
+                badge.classList.remove('visible');
+            }
+        }
+
+        function getBookmarkKey(item) {
+            if (item?.url) return item.url;
+            if (item?.type && item?.id) return `${item.type}:${item.id}`;
+            return item?.title || '';
+        }
+
+        function normalizeBookmarkItem(item) {
+            return {
+                key: getBookmarkKey(item),
+                type: item.type,
+                id: item.id,
+                url: item.url,
+                title: item.title,
+                year: item.year || '',
+                poster: item.poster || ''
+            };
+        }
+
+        function isBookmarked(item) {
+            const key = getBookmarkKey(item);
+            if (!key) return false;
+            return getBookmarks().some(b => b.key === key);
+        }
+
+        function toggleBookmark(item) {
+            const key = getBookmarkKey(item);
+            if (!key) return false;
+            const bookmarks = getBookmarks();
+            const index = bookmarks.findIndex(b => b.key === key);
+            if (index >= 0) {
+                bookmarks.splice(index, 1);
+                saveBookmarks(bookmarks);
+                updateBookmarkCount();
+                return false;
+            }
+            bookmarks.unshift(normalizeBookmarkItem(item));
+            saveBookmarks(bookmarks);
+            updateBookmarkCount(true);
+            return true;
+        }
+
+        function renderBookmarks() {
+            const bookmarks = getBookmarks();
+            const grid = document.getElementById('bookmarksGrid');
+            if (!grid) return;
+            if (!bookmarks.length) {
+                grid.innerHTML = '<div class="error">No bookmarks yet</div>';
+                return;
+            }
+            renderCardGrid(grid, bookmarks);
+        }
+
+        function showBookmarksList() {
+            const bookmarksSection = document.getElementById('bookmarksSection');
+            const resultsSection = document.getElementById('resultsSection');
+            document.getElementById('continueSection').classList.remove('active');
+            document.getElementById('adminListsSection').classList.remove('active');
+            resultsWereVisible = resultsSection.classList.contains('active');
+            resultsSection.classList.remove('active');
+            bookmarksSection.classList.add('active');
+            renderBookmarks();
+            const btn = document.querySelector('.bookmark-toggle');
+            if (btn) btn.classList.add('active');
+        }
+
+        function hideBookmarksList() {
+            const bookmarksSection = document.getElementById('bookmarksSection');
+            bookmarksSection.classList.remove('active');
+            if (resultsWereVisible) {
+                document.getElementById('resultsSection').classList.add('active');
+            }
+            if (!resultsWereVisible) {
+                window.alphyContinue?.render?.();
+                window.alphyAdminLists?.render?.();
+            }
+            const btn = document.querySelector('.bookmark-toggle');
+            if (btn) btn.classList.remove('active');
+        }
+
+        function toggleBookmarks() {
+            const bookmarksSection = document.getElementById('bookmarksSection');
+            if (bookmarksSection.classList.contains('active')) {
+                hideBookmarksList();
+            } else {
+                showBookmarksList();
+            }
+        }
+
         let movieFallbackTimer = null;
         let movieFallbackUsed = false;
         let currentMovieId = null;
         let currentMovieData = null;
+        let currentResumeTime = 0;
 
         function clearMovieFallback() {
             if (movieFallbackTimer) {
@@ -275,7 +1101,7 @@
                 clearMovieFallback();
                 console.warn('[soap] movie playback fallback triggered');
                 if (currentMovieId && currentMovieData) {
-                    playMovieWithCdn(currentMovieId, currentMovieData, fallbackCdn, false);
+                    playMovieWithCdn(currentMovieId, currentMovieData, fallbackCdn, false, currentResumeTime);
                 }
             };
 
@@ -288,20 +1114,21 @@
                 movieFallbackUsed = true;
                 console.warn('[soap] movie playback timeout fallback triggered');
                 if (currentMovieId && currentMovieData) {
-                    playMovieWithCdn(currentMovieId, currentMovieData, fallbackCdn, false);
+                    playMovieWithCdn(currentMovieId, currentMovieData, fallbackCdn, false, currentResumeTime);
                 }
             }, 5000);
         }
 
-        function playMovieWithCdn(movieId, data, cdn, allowFallback = true) {
+        function playMovieWithCdn(movieId, data, cdn, allowFallback = true, resumeTime = 0) {
             currentMovieId = movieId;
             currentMovieData = data;
+            currentResumeTime = resumeTime || 0;
             movieFallbackUsed = !allowFallback;
             clearMovieFallback();
 
             console.info('[soap] movie cdn preference:', cdn);
             const proxied = `/api/soap/hls?src=${encodeURIComponent(data.stream_url)}&cdn=${encodeURIComponent(cdn)}`;
-            playVideo(proxied, data.title, 'hls', data.subtitles || {});
+            playVideo(proxied, data.title, 'hls', data.subtitles || {}, currentResumeTime);
             if (allowFallback) {
                 setupMovieFallback(cdn);
             }
@@ -438,6 +1265,10 @@
                     }
                 }
             });
+
+            player.on('ended', () => {
+                window.alphyContinue?.markEnded?.();
+            });
         }
 
         function changeQuality() {
@@ -473,25 +1304,29 @@
 
         function displayResults(results) {
             hideLoading();
+            const grid = document.getElementById('resultsGrid');
+            const titleEl = document.getElementById('resultsTitle');
             if (results.length === 0) {
-                document.getElementById('resultsGrid').innerHTML =
-                    '<div class="error">No results found</div>';
+                if (titleEl) titleEl.textContent = 'Результаты';
+                grid.innerHTML = '<div class="error">No results found</div>';
             } else {
-                document.getElementById('resultsGrid').innerHTML = results.map(item => `
-                    <div class="result-card" onclick='selectContent(${JSON.stringify(item)})'>
-                        <img class="result-poster"
-                             src="${item.poster || ''}"
-                             alt="${item.title}"
-                             onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 200 300%22><rect fill=%22%23333%22 width=%22200%22 height=%22300%22/><text fill=%22%23666%22 x=%22100%22 y=%22150%22 text-anchor=%22middle%22>No Image</text></svg>'">
-                        <div class="result-info">
-                            <div class="result-title">${item.title}</div>
-                            <div class="result-meta">${item.type} ${item.year || ''}</div>
-                        </div>
-                    </div>
-                `).join('');
+                if (titleEl) {
+                    const types = new Set(results.map(r => r.type));
+                    if (types.size === 1) {
+                        titleEl.textContent = types.has('movie') ? 'Фильмы' : 'Сериалы';
+                    } else {
+                        titleEl.textContent = 'Фильмы и сериалы';
+                    }
+                }
+                renderCardGrid(grid, results);
             }
 
             document.getElementById('resultsSection').classList.add('active');
+            document.getElementById('bookmarksSection').classList.remove('active');
+            document.getElementById('continueSection').classList.remove('active');
+            document.getElementById('adminListsSection').classList.remove('active');
+            const btn = document.querySelector('.bookmark-toggle');
+            if (btn) btn.classList.remove('active');
         }
 
         async function selectContent(item) {
@@ -510,15 +1345,51 @@
             }
         }
 
-        async function playMovie(movieId) {
+        async function playMovie(movieId, resumeTime = 0) {
             const response = await fetch(`${API_BASE}/movie/${movieId}`);
             const data = await response.json();
+            if (currentContent && !currentContent.title) {
+                currentContent.title = data.title;
+            }
+            if (currentContent && !currentContent.poster) {
+                currentContent.poster = data.poster;
+            }
 
             if (data.stream_url) {
                 const preferred = getPreferredMovieCdn();
-                playMovieWithCdn(movieId, data, preferred, true);
+                playMovieWithCdn(movieId, data, preferred, true, resumeTime);
             } else {
                 throw new Error('No stream URL found');
+            }
+        }
+
+        async function resumeSeries(item, season, episode, resumeTime = 0) {
+            showLoading();
+            hideAll();
+            currentContent = {
+                ...item,
+                type: 'series',
+                id: item.id
+            };
+            try {
+                const response = await fetch(`${API_BASE}/series/${item.id}`);
+                const data = await response.json();
+                currentContent.seriesData = data;
+                currentContent.title = currentContent.title || data.title;
+                currentContent.poster = currentContent.poster || data.poster;
+                seasonData = {};
+
+                await setupSeasons(data, season);
+                const selectedSeason = seasonData[season];
+                const epData = selectedSeason?.episodes?.find(ep => ep.episode === episode) || selectedSeason?.episodes?.[0];
+                if (!epData) {
+                    throw new Error('Episode not found');
+                }
+                document.getElementById('resultsSection').classList.remove('active');
+                document.getElementById('continueSection').classList.remove('active');
+                await playEpisode(epData, resumeTime);
+            } catch (e) {
+                showError('Failed to resume series: ' + e.message);
             }
         }
 
@@ -530,18 +1401,19 @@
             seasonData = {};
 
             hideLoading();
-            setupSeasons(data);
+            await setupSeasons(data);
         }
 
-        function setupSeasons(data) {
+        async function setupSeasons(data, initialSeason = null) {
             const seasons = data.seasons || [1];
+            const selected = initialSeason || seasons[0];
 
             document.getElementById('seasonTabs').innerHTML = seasons.map(s =>
-                `<button class="season-tab ${s === seasons[0] ? 'active' : ''}"
+                `<button class="season-tab ${s === selected ? 'active' : ''}"
                          onclick="selectSeason(${s})">Season ${s}</button>`
             ).join('');
 
-            selectSeason(seasons[0]);
+            await selectSeason(selected);
             document.getElementById('episodeSection').classList.add('active');
         }
 
@@ -591,7 +1463,7 @@
             }
         }
 
-        async function playEpisode(episodeData) {
+        async function playEpisode(episodeData, resumeTime = 0) {
             currentEpisodeData = episodeData;
 
             try {
@@ -632,7 +1504,7 @@
 
                 if (data.stream_url) {
                     const title = `${currentContent.title} S${currentSeason}E${episodeData.episode}`;
-                    playVideo(data.stream_url, title, data.stream_type, data.subtitles || {});
+                    playVideo(data.stream_url, title, data.stream_type, data.subtitles || {}, resumeTime);
                 } else {
                     throw new Error('No stream URL');
                 }
@@ -641,9 +1513,12 @@
             }
         }
 
-        function playVideo(url, title, streamType = 'hls', subtitles = {}) {
+        function playVideo(url, title, streamType = 'hls', subtitles = {}, resumeTime = 0) {
             hideLoading();
             initPlayer();
+            const continueSection = document.getElementById('continueSection');
+            if (continueSection) continueSection.classList.remove('active');
+            window.alphyContinue?.primeSnapshotMeta?.();
 
             const remoteTracks = player.remoteTextTracks();
             for (let i = remoteTracks.length - 1; i >= 0; i--) {
@@ -660,6 +1535,16 @@
             }
 
             player.src({ src: url, type: mimeType });
+
+            if (resumeTime && resumeTime > 0) {
+                player.one('loadedmetadata', () => {
+                    try {
+                        if (resumeTime < player.duration()) {
+                            player.currentTime(resumeTime);
+                        }
+                    } catch {}
+                });
+            }
 
             const subtitleEntries = Object.entries(subtitles || {});
             let defaultSubtitleSet = false;
@@ -697,6 +1582,7 @@
             document.getElementById('playerTitle').textContent = title;
             document.getElementById('playerSection').classList.add('active');
             player.play().catch(() => {});
+            window.alphyContinue?.startTracking?.();
         }
 
         function changeSpeed() {
@@ -707,11 +1593,16 @@
         }
 
         function hideAll() {
+            window.alphyContinue?.captureSnapshot?.();
             document.getElementById('playerSection').classList.remove('active');
             document.getElementById('episodeSection').classList.remove('active');
             document.getElementById('resultsSection').classList.remove('active');
+            document.getElementById('bookmarksSection').classList.remove('active');
+            document.getElementById('continueSection').classList.remove('active');
+            document.getElementById('adminListsSection').classList.remove('active');
             document.getElementById('error').style.display = 'none';
             clearMovieFallback();
+            window.alphyContinue?.stopTracking?.();
         }
 
         function goHome() {
@@ -720,6 +1611,62 @@
             document.getElementById('searchInput').value = '';
             currentContent = null;
             seasonData = {};
+            const btn = document.querySelector('.bookmark-toggle');
+            if (btn) btn.classList.remove('active');
+            window.alphyContinue?.render?.();
+            window.alphyAdminLists?.render?.();
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            updateBookmarkCount();
+            window.alphyContinue?.init?.({
+                getPlayer: () => player,
+                getVideoElement: () => player?.el()?.querySelector('video') || null,
+                getCurrent: () => currentContent,
+                getSeason: () => currentSeason,
+                getEpisode: () => currentEpisodeData?.episode ?? null,
+                getSeasonData: () => seasonData,
+                getSeriesSeasons: () => currentContent?.seriesData?.seasons || [],
+                isHome: () => {
+                    const playerActive = document.getElementById('playerSection')?.classList.contains('active');
+                    const episodeActive = document.getElementById('episodeSection')?.classList.contains('active');
+                    const resultsActive = document.getElementById('resultsSection')?.classList.contains('active');
+                    const bookmarksActive = document.getElementById('bookmarksSection')?.classList.contains('active');
+                    return !(playerActive || episodeActive || resultsActive || bookmarksActive);
+                },
+                playMovie: (item, resumeTime) => {
+                    showLoading();
+                    hideAll();
+                    currentContent = { ...item, type: 'movie' };
+                    playMovie(item.id, resumeTime);
+                },
+                playSeries: (item, season, episode, resumeTime) => {
+                    currentContent = { ...item, type: 'series' };
+                    resumeSeries(item, season, episode, resumeTime);
+                }
+            });
+            window.alphyAdminLists?.init?.();
+            initFixedSearch();
+        });
+
+        function initFixedSearch() {
+            const wrap = document.getElementById('searchStickyWrap');
+            if (!wrap) return;
+
+            const measure = () => {
+                wrap.classList.remove('fixed');
+                const rect = wrap.getBoundingClientRect();
+                wrap.style.setProperty('--search-top', `${rect.top}px`);
+                wrap.style.setProperty('--search-left', `${rect.left}px`);
+                wrap.style.setProperty('--search-width', `${rect.width}px`);
+                wrap.style.setProperty('--search-bg-height', `${rect.bottom + 10}px`);
+                wrap.classList.add('fixed');
+            };
+
+            measure();
+            window.addEventListener('resize', () => {
+                measure();
+            });
         }
 
         function showLoading() {

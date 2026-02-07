@@ -5,10 +5,13 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from starlette.responses import Response
 from typing import Optional
+import json
+import uuid
 import os
 import re
 import hashlib
 import base64
+import time
 from urllib.parse import urlparse, urljoin, quote
 from collections import defaultdict
 
@@ -29,6 +32,8 @@ ADMIN_USER = os.getenv("ADMIN_USER", "admin")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "London2006)")
 
 app = FastAPI(title="alphy")
+
+LISTS_FILE = os.path.join(os.path.dirname(__file__), "data", "admin_lists.json")
 
 
 def _decode_admin_token(token: str) -> Optional[tuple[str, str]]:
@@ -60,6 +65,59 @@ def require_admin(request: Request, allow_query: bool = True) -> None:
     raise HTTPException(status_code=401, detail="Admin authentication required")
 
 
+def _load_admin_lists() -> dict:
+    if not os.path.exists(LISTS_FILE):
+        return {"lists": []}
+    try:
+        with open(LISTS_FILE, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+            if isinstance(data, dict) and isinstance(data.get("lists"), list):
+                return data
+    except Exception:
+        pass
+    return {"lists": []}
+
+
+def _save_admin_lists(payload: dict) -> None:
+    os.makedirs(os.path.dirname(LISTS_FILE), exist_ok=True)
+    tmp_path = LISTS_FILE + ".tmp"
+    with open(tmp_path, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, ensure_ascii=False, indent=2)
+    os.replace(tmp_path, LISTS_FILE)
+
+
+def _normalize_admin_lists(payload: dict) -> dict:
+    lists = payload.get("lists", []) if isinstance(payload, dict) else []
+    normalized = []
+    for entry in lists:
+        if not isinstance(entry, dict):
+            continue
+        list_id = str(entry.get("id") or uuid.uuid4())
+        title = str(entry.get("title") or "").strip() or "Новый список"
+        items = []
+        for item in entry.get("items", []) or []:
+            if not isinstance(item, dict):
+                continue
+            item_type = item.get("type")
+            item_id = item.get("id")
+            if not item_type or not item_id:
+                continue
+            items.append({
+                "type": str(item_type),
+                "id": str(item_id),
+                "title": str(item.get("title") or "").strip(),
+                "year": item.get("year"),
+                "poster": item.get("poster"),
+                "url": item.get("url"),
+            })
+        normalized.append({
+            "id": list_id,
+            "title": title,
+            "items": items,
+        })
+    return {"lists": normalized}
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint for Render deployment."""
@@ -70,6 +128,26 @@ async def health_check():
 async def admin_check(request: Request):
     require_admin(request)
     return {"status": "ok"}
+
+
+@app.get("/api/lists")
+async def public_lists():
+    return _load_admin_lists()
+
+
+@app.get("/api/admin/lists")
+async def admin_lists(request: Request):
+    require_admin(request)
+    return _load_admin_lists()
+
+
+@app.put("/api/admin/lists")
+async def update_admin_lists(request: Request):
+    require_admin(request)
+    payload = await request.json()
+    normalized = _normalize_admin_lists(payload)
+    _save_admin_lists(normalized)
+    return normalized
 
 
 # ==================== SOAP4YOU API ====================
@@ -83,6 +161,42 @@ async def soap_search(q: str = Query(..., min_length=1)):
     response = await client.get("https://soap4youand.me/search/", params={"q": q})
     results = parse_search_results(response.text)
     return {"results": results}
+
+
+@app.get("/api/soap/meta")
+@app.get("/api/soap/meta/")
+async def soap_meta(
+    url: Optional[str] = Query(None),
+    type: Optional[str] = Query(None),
+    id: Optional[str] = Query(None),
+    slug: Optional[str] = Query(None),
+):
+    """Fetch rating + duration metadata for a soap4youand.me movie or series page."""
+    if not SOAP_LOGIN or not SOAP_PASSWORD:
+        raise HTTPException(status_code=500, detail="SOAP credentials not configured")
+
+    target_url = None
+    if url:
+        target_url = _sanitize_soap_page_url(url)
+    elif type == "movie" and id:
+        target_url = _sanitize_soap_page_url(f"/movies/{id}/")
+    elif type in {"series", "soap"} and slug:
+        target_url = _sanitize_soap_page_url(f"/soap/{slug}/")
+
+    if not target_url:
+        raise HTTPException(status_code=400, detail="Invalid soap page url")
+
+    now = time.time()
+    cached = SOAP_META_CACHE.get(target_url)
+    if cached and now - cached.get("ts", 0) < SOAP_META_TTL_SECONDS:
+        return cached.get("data", {})
+
+    await ensure_soap_logged_in()
+    client = await get_soap_client()
+    response = await client.get(target_url)
+    data = parse_soap_meta(response.text)
+    SOAP_META_CACHE[target_url] = {"ts": now, "data": data}
+    return data
 
 
 @app.get("/api/soap/movie/{movie_id}")
@@ -456,6 +570,8 @@ async def get_proxy_client() -> httpx.AsyncClient:
 # SOAP4YOU client/session
 soap_client: httpx.AsyncClient | None = None
 soap_session_token: Optional[str] = None
+SOAP_META_CACHE: dict[str, dict] = {}
+SOAP_META_TTL_SECONDS = 6 * 60 * 60
 
 
 async def get_soap_client() -> httpx.AsyncClient:
@@ -590,6 +706,121 @@ def rewrite_soap_m3u8(content: str, base_url: str, cdn: Optional[str] = None) ->
     return "\n".join(rewritten)
 
 
+def _normalize_soap_url(url: Optional[str]) -> Optional[str]:
+    if not url:
+        return None
+    url = url.strip()
+    if url.startswith("//"):
+        url = f"https:{url}"
+    if url.startswith("/"):
+        url = f"https://soap4youand.me{url}"
+    return url
+
+
+def _sanitize_soap_page_url(url: Optional[str]) -> Optional[str]:
+    normalized = _normalize_soap_url(url)
+    if not normalized:
+        return None
+    parsed = urlparse(normalized)
+    if parsed.scheme not in {"http", "https"}:
+        return None
+    if parsed.netloc not in {"soap4youand.me", "www.soap4youand.me"}:
+        return None
+    return normalized
+
+
+def _extract_rating(text: str, label_pattern: str) -> Optional[str]:
+    match = re.search(label_pattern, text, re.IGNORECASE)
+    if not match:
+        return None
+    value = match.group(1).replace(",", ".")
+    return value
+
+
+def _normalize_duration(value: str) -> Optional[str]:
+    if not value:
+        return None
+    hours_match = re.search(r'(\d+)\s*ч', value, re.IGNORECASE)
+    mins_match = re.search(r'(\d+)\s*м', value, re.IGNORECASE)
+    if hours_match and mins_match:
+        return f"{hours_match.group(1)} ч {mins_match.group(1)} м"
+    if mins_match:
+        return f"{mins_match.group(1)} м"
+    return value.strip()
+
+
+def parse_soap_meta(html: str) -> dict:
+    soup = BeautifulSoup(html, "html.parser")
+    text = soup.get_text(" ", strip=True)
+
+    imdb = _extract_rating(
+        text,
+        r'рейтинг\s*imdb\s*[:\-]?\s*([0-9]+(?:[.,][0-9]+)?)',
+    )
+    kp = _extract_rating(
+        text,
+        r'рейтинг\s*кинопоиск\s*[:\-]?\s*([0-9]+(?:[.,][0-9]+)?)',
+    )
+    duration_match = re.search(
+        r'длительность[^0-9]{0,12}([0-9]+\s*ч\s*[0-9]+\s*м|[0-9]+\s*м)',
+        text,
+        re.IGNORECASE,
+    )
+    duration = _normalize_duration(duration_match.group(1)) if duration_match else None
+
+    return {
+        "imdb": imdb,
+        "kp": kp,
+        "duration": duration,
+    }
+
+
+def _pick_best_srcset(srcset: str) -> Optional[str]:
+    if not srcset:
+        return None
+    candidates = []
+    for part in srcset.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        bits = part.split()
+        url = bits[0]
+        score = 0
+        if len(bits) > 1:
+            descriptor = bits[1].strip()
+            try:
+                if descriptor.endswith("w"):
+                    score = int(re.sub(r"[^0-9]", "", descriptor))
+                elif descriptor.endswith("x"):
+                    score = float(descriptor[:-1]) * 1000
+            except ValueError:
+                score = 0
+        candidates.append((score, url))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: item[0])
+    return candidates[-1][1]
+
+
+def _extract_best_poster(item_html: str) -> Optional[str]:
+    for attr in ("data-srcset", "srcset"):
+        match = re.search(rf'{attr}=["\']([^"\']+)["\']', item_html)
+        if match:
+            best = _pick_best_srcset(match.group(1))
+            if best:
+                return _normalize_soap_url(best)
+
+    for attr in ("data-src", "data-original", "data-lazy", "data-image", "data-img", "data-poster"):
+        match = re.search(rf'{attr}=["\']([^"\']+)["\']', item_html)
+        if match:
+            return _normalize_soap_url(match.group(1))
+
+    match = re.search(r'<img[^>]*src=["\']([^"\']+)["\']', item_html)
+    if match:
+        return _normalize_soap_url(match.group(1))
+    return None
+
+
 def parse_search_results(html: str) -> list:
     """Parse search results from soap4youand.me HTML."""
     results = []
@@ -605,10 +836,7 @@ def parse_search_results(html: str) -> list:
 
         url, content_type, id_or_slug = url_match.groups()
 
-        poster_match = re.search(r'<img[^>]*src="([^"]+)"', item)
-        poster = poster_match.group(1) if poster_match else None
-        if poster and not poster.startswith('http'):
-            poster = f"https://soap4youand.me{poster}"
+        poster = _extract_best_poster(item)
 
         title_match = re.search(
             r'<h5[^>]*>.*?<a[^>]*>([^<]+(?:<span[^>]*>[^<]*</span>[^<]*)*)</a>',
