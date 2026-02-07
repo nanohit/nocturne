@@ -79,6 +79,15 @@
             }
             .search-button svg,
             .bookmark-toggle svg { width: 20px; height: 20px; }
+
+            html, body {
+                scroll-behavior: auto;
+            }
+
+            .continue-track {
+                scroll-behavior: auto;
+                touch-action: pan-y;
+            }
         }
         .logo-btn {
             display: inline-flex;
@@ -352,10 +361,10 @@
             overflow-x: auto;
             overflow-y: visible;
             scrollbar-width: none;
-            scroll-behavior: smooth;
             padding: 8px 8px 12px;
             scroll-padding: 8px;
             width: 100%;
+            -webkit-overflow-scrolling: touch;
         }
         .continue-track::-webkit-scrollbar {
             display: none;

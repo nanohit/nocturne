@@ -134,6 +134,14 @@
     opacity: 0.6;
 }
 
+@media (max-width: 640px), (max-height: 720px) {
+    .list-grid {
+        scroll-behavior: auto;
+        -webkit-overflow-scrolling: touch;
+        touch-action: pan-y;
+    }
+}
+
 .admin-add-btn {
     position: absolute;
     left: 8px;
