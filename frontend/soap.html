@@ -37,6 +37,7 @@
             color: var(--text);
             min-height: 100vh;
         }
+        #scrollRoot { width: 100%; }
         .container { max-width: 1280px; margin: 0 auto; padding: 16px 32px 44px; }
 
         header {
@@ -87,6 +88,19 @@
             .continue-track {
                 scroll-behavior: auto;
                 touch-action: pan-y;
+            }
+
+            html, body {
+                height: 100%;
+                overflow: hidden;
+            }
+
+            #scrollRoot {
+                position: fixed;
+                inset: 0;
+                overflow-y: auto;
+                overflow-x: hidden;
+                -webkit-overflow-scrolling: touch;
             }
         }
         .logo-btn {
@@ -671,7 +685,8 @@
     </style>
 </head>
 <body>
-    <div class="container">
+        <div id="scrollRoot">
+            <div class="container">
         <header>
             <div class="brand">
                 <button class="logo-btn" onclick="goHome()" aria-label="Go home">
@@ -765,6 +780,7 @@
         <div id="loading" class="loading">Loading...</div>
         <div id="error" class="error"></div>
     </div>
+</div>
 
     <script src="/static/js/continue.js"></script>
     <script src="/static/js/admin-lists.js"></script>
