@@ -53,18 +53,32 @@
             min-width: 180px;
         }
         @media (max-width: 640px), (max-height: 720px) {
+            :root {
+                --card-min: 116px;
+                --card-gap: 18px;
+                --card-size: 116px;
+                --hover-stroke: 2px;
+            }
             .brand {
                 display: none;
             }
             header {
                 gap: 0;
             }
-            .container {
-                transform: scale(0.8);
-                transform-origin: top center;
-                width: 125%;
-                margin-left: -12.5%;
+            .search-box { gap: 10px; }
+            .search-box input {
+                padding: 12px 14px;
+                font-size: 15px;
+                border-radius: 12px;
             }
+            .search-button,
+            .bookmark-toggle {
+                width: 44px;
+                height: 44px;
+                border-radius: 12px;
+            }
+            .search-button svg,
+            .bookmark-toggle svg { width: 20px; height: 20px; }
         }
         .logo-btn {
             display: inline-flex;
@@ -664,7 +678,7 @@
                 </div>
             </div>
             <div class="search-box">
-                <input type="text" id="searchInput" placeholder="название фильма или сериала..." autofocus>
+                <input type="text" id="searchInput" placeholder="название фильма или сериала...">
                 <button class="search-button" type="button" onclick="search()" aria-label="Search">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <circle cx="11" cy="11" r="7"></circle>
