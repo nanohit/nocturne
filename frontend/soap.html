@@ -43,38 +43,33 @@
             display: flex;
             align-items: center;
             gap: 28px;
-            margin-bottom: 36px;
-        }
-        .search-stick-wrap {
-            flex: 1;
-            position: relative;
-            margin-top: -10px;
-        }
-        .search-stick-wrap.fixed {
-            position: fixed;
-            top: var(--search-top, 0px);
-            left: var(--search-left, 0px);
-            width: var(--search-width, auto);
-            z-index: 20;
-        }
-        .search-stick-wrap.fixed::before {
-            content: "";
-            position: fixed;
+            margin-bottom: 28px;
+            position: sticky;
             top: 0;
-            left: calc(var(--search-left, 0px) - 10px);
-            width: calc(var(--search-width, 0px) + 20px);
-            height: var(--search-bg-height, 0px);
+            z-index: 20;
             background: #000;
-            border-bottom-left-radius: 18px;
-            border-bottom-right-radius: 18px;
-            box-shadow: 0 14px 30px rgba(0, 0, 0, 0.6);
-            z-index: -1;
+            padding: 10px 0 16px;
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.6);
         }
         .brand {
             display: flex;
             flex-direction: column;
             gap: 10px;
             min-width: 180px;
+        }
+        @media (max-width: 640px), (max-height: 720px) {
+            .brand {
+                display: none;
+            }
+            header {
+                gap: 0;
+            }
+            .container {
+                transform: scale(0.8);
+                transform-origin: top center;
+                width: 125%;
+                margin-left: -12.5%;
+            }
         }
         .logo-btn {
             display: inline-flex;
@@ -673,24 +668,20 @@
                     <span>Proxy</span>
                 </div>
             </div>
-            <div id="searchStickyWrap" class="search-stick-wrap">
-                <div class="search-stick-inner">
-                    <div class="search-box">
-                        <input type="text" id="searchInput" placeholder="название фильма или сериала..." autofocus>
-                        <button class="search-button" type="button" onclick="search()" aria-label="Search">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                <circle cx="11" cy="11" r="7"></circle>
-                                <line x1="16.65" y1="16.65" x2="21" y2="21"></line>
-                            </svg>
-                        </button>
-                        <button class="bookmark-toggle" type="button" onclick="toggleBookmarks()" aria-label="Bookmarks">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z"></path>
-                            </svg>
-                            <span class="bookmark-count" id="bookmarkCount">0</span>
-                        </button>
-                    </div>
-                </div>
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="название фильма или сериала..." autofocus>
+                <button class="search-button" type="button" onclick="search()" aria-label="Search">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="11" cy="11" r="7"></circle>
+                        <line x1="16.65" y1="16.65" x2="21" y2="21"></line>
+                    </svg>
+                </button>
+                <button class="bookmark-toggle" type="button" onclick="toggleBookmarks()" aria-label="Bookmarks">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z"></path>
+                    </svg>
+                    <span class="bookmark-count" id="bookmarkCount">0</span>
+                </button>
             </div>
         </header>
 
@@ -1646,28 +1637,7 @@
                 }
             });
             window.alphyAdminLists?.init?.();
-            initFixedSearch();
         });
-
-        function initFixedSearch() {
-            const wrap = document.getElementById('searchStickyWrap');
-            if (!wrap) return;
-
-            const measure = () => {
-                wrap.classList.remove('fixed');
-                const rect = wrap.getBoundingClientRect();
-                wrap.style.setProperty('--search-top', `${rect.top}px`);
-                wrap.style.setProperty('--search-left', `${rect.left}px`);
-                wrap.style.setProperty('--search-width', `${rect.width}px`);
-                wrap.style.setProperty('--search-bg-height', `${rect.bottom + 10}px`);
-                wrap.classList.add('fixed');
-            };
-
-            measure();
-            window.addEventListener('resize', () => {
-                measure();
-            });
-        }
 
         function showLoading() {
             document.getElementById('loading').style.display = 'block';
