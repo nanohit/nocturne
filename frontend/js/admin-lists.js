@@ -2,11 +2,13 @@
     const PUBLIC_ENDPOINT = '/api/lists';
     const ADMIN_ENDPOINT = '/api/admin/lists';
     const ADMIN_CHECK = '/api/admin/check';
+    const BACKUP_KEY = 'alphy_admin_lists_backup_v1';
     let lists = [];
     let isAdmin = false;
     let saveTimer = null;
     let listPicker = null;
     let pendingPickerItem = null;
+    let autoRestoreAttempted = false;
 
     function getAdminAuth() {
         return window.getAdminAuth ? window.getAdminAuth() : null;
@@ -18,6 +20,29 @@
             return { 'X-Admin-User': auth.user, 'X-Admin-Pass': auth.pass };
         }
         return {};
+    }
+
+    function loadBackupLists() {
+        try {
+            const raw = localStorage.getItem(BACKUP_KEY);
+            if (!raw) return [];
+            const parsed = JSON.parse(raw);
+            const backupLists = parsed?.lists;
+            return Array.isArray(backupLists) ? backupLists : [];
+        } catch {
+            return [];
+        }
+    }
+
+    function saveBackupLists(items) {
+        try {
+            localStorage.setItem(BACKUP_KEY, JSON.stringify({
+                ts: Date.now(),
+                lists: items
+            }));
+        } catch {
+            // ignore
+        }
     }
 
     function setAdminMode(enabled) {
@@ -73,6 +98,7 @@
 
     function scheduleSave() {
         if (!isAdmin) return;
+        saveBackupLists(lists);
         clearTimeout(saveTimer);
         saveTimer = setTimeout(() => {
             saveLists();
@@ -86,6 +112,9 @@
             const data = await response.json();
             lists = Array.isArray(data?.lists) ? data.lists : [];
             render();
+            if (!lists.length) {
+                await autoRestoreFromBackup();
+            }
         } catch {
             // ignore
         }
@@ -109,8 +138,42 @@
             if (response.ok) {
                 const data = await response.json();
                 lists = Array.isArray(data?.lists) ? data.lists : lists;
+                saveBackupLists(lists);
                 render();
             }
+        } catch {
+            // ignore
+        }
+    }
+
+    async function autoRestoreFromBackup() {
+        if (autoRestoreAttempted) return;
+        autoRestoreAttempted = true;
+
+        const backupLists = loadBackupLists();
+        if (!backupLists.length) return;
+
+        const auth = getAdminAuth();
+        if (!auth?.user || !auth?.pass) return;
+
+        try {
+            const checkResponse = await fetch(ADMIN_CHECK, { headers: adminHeaders() });
+            if (!checkResponse.ok) return;
+            setAdminMode(true);
+
+            const restoreResponse = await fetch(ADMIN_ENDPOINT, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...adminHeaders()
+                },
+                body: JSON.stringify({ lists: backupLists })
+            });
+            if (!restoreResponse.ok) return;
+
+            const restored = await restoreResponse.json();
+            lists = Array.isArray(restored?.lists) ? restored.lists : backupLists;
+            render();
         } catch {
             // ignore
         }
