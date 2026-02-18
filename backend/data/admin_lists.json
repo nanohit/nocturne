@@ -1,0 +1,978 @@
+{
+  "lists": [
+    {
+      "id": "3f03f72b-5ef7-46fd-b111-321d27f28b3f",
+      "title": "Выбор сообщества",
+      "items": [
+        {
+          "type": "series",
+          "id": "BoJack_Horseman",
+          "title": "BoJack Horseman",
+          "year": "2014",
+          "poster": "https://soap4youand.me/assets/covers/soap/451.jpg",
+          "url": "/soap/BoJack_Horseman/"
+        },
+        {
+          "type": "movie",
+          "id": "324",
+          "title": "Poor Things",
+          "year": "2023",
+          "poster": "https://soap4youand.me/assets/covers/movies/324_small.jpg",
+          "url": "/movies/324/"
+        },
+        {
+          "type": "series",
+          "id": "Scenes_from_a_Marriage",
+          "title": "Scenes from a Marriage",
+          "year": "2021",
+          "poster": "https://soap4youand.me/assets/covers/soap/1538.jpg",
+          "url": "/soap/Scenes_from_a_Marriage/"
+        },
+        {
+          "type": "series",
+          "id": "Silicon_Valley",
+          "title": "Silicon Valley",
+          "year": "2014",
+          "poster": "https://soap4youand.me/assets/covers/soap/427.jpg",
+          "url": "/soap/Silicon_Valley/"
+        },
+        {
+          "type": "movie",
+          "id": "998",
+          "title": "Bugonia",
+          "year": "2025",
+          "poster": "https://soap4youand.me/assets/covers/movies/998_small.jpg",
+          "url": "/movies/998/"
+        },
+        {
+          "type": "movie",
+          "id": "1029",
+          "title": "Train Dreams",
+          "year": "2025",
+          "poster": "https://soap4youand.me/assets/covers/movies/1029_small.jpg",
+          "url": "/movies/1029/"
+        },
+        {
+          "type": "movie",
+          "id": "788",
+          "title": "Mulholland Drive",
+          "year": "2001",
+          "poster": "https://soap4youand.me/assets/covers/movies/788_small.jpg",
+          "url": "/movies/788/"
+        },
+        {
+          "type": "series",
+          "id": "Normal_People",
+          "title": "Normal People",
+          "year": "2020",
+          "poster": "https://soap4youand.me/assets/covers/soap/1201.jpg",
+          "url": "/soap/Normal_People/"
+        },
+        {
+          "type": "series",
+          "id": "Freaks_and_Geeks",
+          "title": "Freaks and Geeks",
+          "year": "1999",
+          "poster": "https://soap4youand.me/assets/covers/soap/320.jpg",
+          "url": "/soap/Freaks_and_Geeks/"
+        },
+        {
+          "type": "movie",
+          "id": "369",
+          "title": "Palm Springs",
+          "year": "2020",
+          "poster": "https://soap4youand.me/assets/covers/movies/369_small.jpg",
+          "url": "/movies/369/"
+        },
+        {
+          "type": "movie",
+          "id": "577",
+          "title": "Ex Machina",
+          "year": "2014",
+          "poster": "https://soap4youand.me/assets/covers/movies/577_small.jpg",
+          "url": "/movies/577/"
+        },
+        {
+          "type": "movie",
+          "id": "283",
+          "title": "Everything Everywhere All at Once",
+          "year": "2022",
+          "poster": "https://soap4youand.me/assets/covers/movies/283_small.jpg",
+          "url": "/movies/283/"
+        },
+        {
+          "type": "series",
+          "id": "Fleabag",
+          "title": "Fleabag",
+          "year": "2016",
+          "poster": "https://soap4youand.me/assets/covers/soap/696.jpg",
+          "url": "/soap/Fleabag/"
+        },
+        {
+          "type": "movie",
+          "id": "158",
+          "title": "Scary Movie",
+          "year": "2000",
+          "poster": "https://soap4youand.me/assets/covers/movies/158_small.jpg",
+          "url": "/movies/158/"
+        }
+      ]
+    },
+    {
+      "id": "c3af50f9-a88c-4446-933b-98fa3b375cd7",
+      "title": "Сейчас смотрят",
+      "items": [
+        {
+          "type": "movie",
+          "id": "1032",
+          "title": "Wake Up Dead Man: A Knives Out Mystery",
+          "year": "2025",
+          "poster": "https://soap4youand.me/assets/covers/movies/1032_small.jpg",
+          "url": "/movies/1032/"
+        },
+        {
+          "type": "series",
+          "id": "IT_Welcome_to_Derry",
+          "title": "IT Welcome to Derry",
+          "year": "2025",
+          "poster": "https://soap4youand.me/assets/covers/soap/2164.jpg",
+          "url": "/soap/IT_Welcome_to_Derry/"
+        },
+        {
+          "type": "series",
+          "id": "The_Office",
+          "title": "The Office",
+          "year": "2005",
+          "poster": "https://soap4youand.me/assets/covers/soap/170.jpg",
+          "url": "/soap/The_Office/"
+        },
+        {
+          "type": "movie",
+          "id": "373",
+          "title": "Saw X",
+          "year": "2023",
+          "poster": "https://soap4youand.me/assets/covers/movies/373_small.jpg",
+          "url": "/movies/373/"
+        },
+        {
+          "type": "movie",
+          "id": "961",
+          "title": "Frankenstein",
+          "year": "2025",
+          "poster": "https://soap4youand.me/assets/covers/movies/961_small.jpg",
+          "url": "/movies/961/"
+        },
+        {
+          "type": "movie",
+          "id": "551",
+          "title": "Transformers One",
+          "year": "2024",
+          "poster": "https://soap4youand.me/assets/covers/movies/551_small.jpg",
+          "url": "/movies/551/"
+        },
+        {
+          "type": "movie",
+          "id": "276",
+          "title": "Snatch",
+          "year": "2000",
+          "poster": "https://soap4youand.me/assets/covers/movies/276_small.jpg",
+          "url": "/movies/276/"
+        },
+        {
+          "type": "movie",
+          "id": "874",
+          "title": "KPop Demon Hunters",
+          "year": "2025",
+          "poster": "https://soap4youand.me/assets/covers/movies/874_small.jpg",
+          "url": "/movies/874/"
+        },
+        {
+          "type": "movie",
+          "id": "708",
+          "title": "Weapons",
+          "year": "2025",
+          "poster": "https://soap4youand.me/assets/covers/movies/708_small.jpg",
+          "url": "/movies/708/"
+        },
+        {
+          "type": "movie",
+          "id": "987",
+          "title": "One Battle After Another",
+          "year": "2025",
+          "poster": "https://soap4youand.me/assets/covers/movies/987_small.jpg",
+          "url": "/movies/987/"
+        },
+        {
+          "type": "movie",
+          "id": "95",
+          "title": "Final Destination: Bloodlines",
+          "year": "2025",
+          "poster": "https://soap4youand.me/assets/covers/movies/95_small.jpg",
+          "url": "/movies/95/"
+        },
+        {
+          "type": "movie",
+          "id": "109",
+          "title": "Dungeons and Dragons: Honor Among Thieves",
+          "year": "2023",
+          "poster": "https://soap4youand.me/assets/covers/movies/109_small.jpg",
+          "url": "/movies/109/"
+        },
+        {
+          "type": "movie",
+          "id": "347",
+          "title": "The Nice Guys",
+          "year": "2016",
+          "poster": "https://soap4youand.me/assets/covers/movies/347_small.jpg",
+          "url": "/movies/347/"
+        },
+        {
+          "type": "movie",
+          "id": "14",
+          "title": "The Incredible Hulk",
+          "year": "2008",
+          "poster": "https://soap4youand.me/assets/covers/movies/14_small.jpg",
+          "url": "/movies/14/"
+        },
+        {
+          "type": "movie",
+          "id": "612",
+          "title": "No Time to Die",
+          "year": "2021",
+          "poster": "https://soap4youand.me/assets/covers/movies/612_small.jpg",
+          "url": "/movies/612/"
+        }
+      ]
+    },
+    {
+      "id": "1fe79e55-6fab-4688-8f94-d3015b50f26e",
+      "title": "ХайпТрейн",
+      "items": [
+        {
+          "type": "series",
+          "id": "Fallout",
+          "title": "Fallout",
+          "year": "2024",
+          "poster": "https://soap4youand.me/assets/covers/soap/1972.jpg",
+          "url": "/soap/Fallout/"
+        },
+        {
+          "type": "series",
+          "id": "Stranger_Things",
+          "title": "Stranger Things",
+          "year": "2016",
+          "poster": "https://soap4youand.me/assets/covers/soap/684.jpg",
+          "url": "/soap/Stranger_Things/"
+        },
+        {
+          "type": "series",
+          "id": "Dexter_Resurrection",
+          "title": "Dexter Resurrection",
+          "year": "2025",
+          "poster": "https://soap4youand.me/assets/covers/soap/2117.jpg",
+          "url": "/soap/Dexter_Resurrection/"
+        },
+        {
+          "type": "series",
+          "id": "The_Last_of_Us",
+          "title": "The Last of Us",
+          "year": "2023",
+          "poster": "https://soap4youand.me/assets/covers/soap/1695.jpg",
+          "url": "/soap/The_Last_of_Us/"
+        },
+        {
+          "type": "series",
+          "id": "The_Boys",
+          "title": "The Boys",
+          "year": "2019",
+          "poster": "https://soap4youand.me/assets/covers/soap/1037.jpg",
+          "url": "/soap/The_Boys/"
+        },
+        {
+          "type": "series",
+          "id": "Squid_Game",
+          "title": "Squid Game",
+          "year": "2021",
+          "poster": "https://soap4youand.me/assets/covers/soap/1530.jpg",
+          "url": "/soap/Squid_Game/"
+        },
+        {
+          "type": "series",
+          "id": "Black_Mirror",
+          "title": "Black Mirror",
+          "year": "2011",
+          "poster": "https://soap4youand.me/assets/covers/soap/144.jpg",
+          "url": "/soap/Black_Mirror/"
+        },
+        {
+          "type": "series",
+          "id": "Severance",
+          "title": "Severance",
+          "year": "2022",
+          "poster": "https://soap4youand.me/assets/covers/soap/1604.jpg",
+          "url": "/soap/Severance/"
+        },
+        {
+          "type": "series",
+          "id": "The_Bear",
+          "title": "The Bear",
+          "year": "2022",
+          "poster": "https://soap4youand.me/assets/covers/soap/1645.jpg",
+          "url": "/soap/The_Bear/"
+        },
+        {
+          "type": "series",
+          "id": "Ted_Lasso",
+          "title": "Ted Lasso",
+          "year": "2020",
+          "poster": "https://soap4youand.me/assets/covers/soap/1276.jpg",
+          "url": "/soap/Ted_Lasso/"
+        },
+        {
+          "type": "series",
+          "id": "Euphoria",
+          "title": "Euphoria",
+          "year": "2019",
+          "poster": "https://soap4youand.me/assets/covers/soap/1035.jpg",
+          "url": "/soap/Euphoria/"
+        },
+        {
+          "type": "series",
+          "id": "The_White_Lotus",
+          "title": "The White Lotus",
+          "year": "2021",
+          "poster": "https://soap4youand.me/assets/covers/soap/1505.jpg",
+          "url": "/soap/The_White_Lotus/"
+        },
+        {
+          "type": "series",
+          "id": "House_of_Dragon",
+          "title": "House of Dragon",
+          "year": "2022",
+          "poster": "https://soap4youand.me/assets/covers/soap/1665.jpg",
+          "url": "/soap/House_of_Dragon/"
+        },
+        {
+          "type": "series",
+          "id": "Alien_Earth",
+          "title": "Alien Earth",
+          "year": "2025",
+          "poster": "https://soap4youand.me/assets/covers/soap/2129.jpg",
+          "url": "/soap/Alien_Earth/"
+        }
+      ]
+    },
+    {
+      "id": "c4193527-1ef0-4c0e-b555-84c937cd705f",
+      "title": "Свежак (2024 & 2025 & 2026)",
+      "items": [
+        {
+          "type": "series",
+          "id": "Pluribus",
+          "title": "Pluribus",
+          "year": "2025",
+          "poster": "https://soap4youand.me/assets/covers/soap/2163.jpg",
+          "url": "/soap/Pluribus/"
+        },
+        {
+          "type": "series",
+          "id": "A_Knight_of_the_Seven_Kingdoms",
+          "title": "A Knight of the Seven Kingdoms",
+          "year": "2026",
+          "poster": "https://soap4youand.me/assets/covers/soap/2167.jpg",
+          "url": "/soap/A_Knight_of_the_Seven_Kingdoms/"
+        },
+        {
+          "type": "movie",
+          "id": "1101",
+          "title": "Rental Family",
+          "year": "2025",
+          "poster": "https://soap4youand.me/assets/covers/movies/1101_small.jpg",
+          "url": "/movies/1101/"
+        },
+        {
+          "type": "series",
+          "id": "Adolescence",
+          "title": "Adolescence",
+          "year": "2025",
+          "poster": "https://soap4youand.me/assets/covers/soap/2097.jpg",
+          "url": "/soap/Adolescence/"
+        },
+        {
+          "type": "series",
+          "id": "The_Pitt",
+          "title": "The Pitt",
+          "year": "2025",
+          "poster": "https://soap4youand.me/assets/covers/soap/2074.jpg",
+          "url": "/soap/The_Pitt/"
+        },
+        {
+          "type": "movie",
+          "id": "682",
+          "title": "Challengers",
+          "year": "2024",
+          "poster": "https://soap4youand.me/assets/covers/movies/682_small.jpg",
+          "url": "/movies/682/"
+        },
+        {
+          "type": "movie",
+          "id": "250",
+          "title": "Bring Her Back",
+          "year": "2025",
+          "poster": "https://soap4youand.me/assets/covers/movies/250_small.jpg",
+          "url": "/movies/250/"
+        },
+        {
+          "type": "movie",
+          "id": "19",
+          "title": "A Minecraft Movie",
+          "year": "2025",
+          "poster": "https://soap4youand.me/assets/covers/movies/19_small.jpg",
+          "url": "/movies/19/"
+        },
+        {
+          "type": "movie",
+          "id": "800",
+          "title": "The Bad Guys",
+          "year": "2022",
+          "poster": "https://soap4youand.me/assets/covers/movies/800_small.jpg",
+          "url": "/movies/800/"
+        },
+        {
+          "type": "movie",
+          "id": "801",
+          "title": "The Bad Guys 2",
+          "year": "2025",
+          "poster": "https://soap4youand.me/assets/covers/movies/801_small.jpg",
+          "url": "/movies/801/"
+        },
+        {
+          "type": "movie",
+          "id": "95",
+          "title": "Final Destination: Bloodlines",
+          "year": "2025",
+          "poster": "https://soap4youand.me/assets/covers/movies/95_small.jpg",
+          "url": "/movies/95/"
+        },
+        {
+          "type": "movie",
+          "id": "502",
+          "title": "Superman",
+          "year": "2025",
+          "poster": "https://soap4youand.me/assets/covers/movies/502_small.jpg",
+          "url": "/movies/502/"
+        },
+        {
+          "type": "movie",
+          "id": "1057",
+          "title": "Nuremberg",
+          "year": "2025",
+          "poster": "https://soap4youand.me/assets/covers/movies/1057_small.jpg",
+          "url": "/movies/1057/"
+        },
+        {
+          "type": "series",
+          "id": "Fallout",
+          "title": "Fallout",
+          "year": "2024",
+          "poster": "https://soap4youand.me/assets/covers/soap/1972.jpg",
+          "url": "/soap/Fallout/"
+        },
+        {
+          "type": "movie",
+          "id": "35",
+          "title": "Sinners",
+          "year": "2025",
+          "poster": "https://soap4youand.me/assets/covers/movies/35_small.jpg",
+          "url": "/movies/35/"
+        },
+        {
+          "type": "movie",
+          "id": "1016",
+          "title": "Predator: Badlands",
+          "year": "2025",
+          "poster": "https://soap4youand.me/assets/covers/movies/1016_small.jpg",
+          "url": "/movies/1016/"
+        }
+      ]
+    },
+    {
+      "id": "b0a5d88e-3821-4a3d-b886-59ed22b7f94c",
+      "title": "Best of the best - золотая коллекция",
+      "items": [
+        {
+          "type": "series",
+          "id": "Chernobyl",
+          "title": "Chernobyl",
+          "year": "2019",
+          "poster": "https://soap4youand.me/assets/covers/soap/1014.jpg",
+          "url": "/soap/Chernobyl/"
+        },
+        {
+          "type": "series",
+          "id": "Twin_Peaks",
+          "title": "Twin Peaks",
+          "year": "1990",
+          "poster": "https://soap4youand.me/assets/covers/soap/41.jpg",
+          "url": "/soap/Twin_Peaks/"
+        },
+        {
+          "type": "series",
+          "id": "Mr_Robot",
+          "title": "Mr Robot",
+          "year": "2015",
+          "poster": "https://soap4youand.me/assets/covers/soap/509.jpg",
+          "url": "/soap/Mr_Robot/"
+        },
+        {
+          "type": "series",
+          "id": "Succession",
+          "title": "Succession",
+          "year": "2018",
+          "poster": "https://soap4youand.me/assets/covers/soap/928.jpg",
+          "url": "/soap/Succession/"
+        },
+        {
+          "type": "series",
+          "id": "House_M.D.",
+          "title": "House M.D.",
+          "year": "2004",
+          "poster": "https://soap4youand.me/assets/covers/soap/1.jpg",
+          "url": "/soap/House_M.D./"
+        },
+        {
+          "type": "series",
+          "id": "Game_of_Thrones",
+          "title": "Game of Thrones",
+          "year": "2011",
+          "poster": "https://soap4youand.me/assets/covers/soap/36.jpg",
+          "url": "/soap/Game_of_Thrones/"
+        },
+        {
+          "type": "series",
+          "id": "Sherlock",
+          "title": "Sherlock",
+          "year": "2010",
+          "poster": "https://soap4youand.me/assets/covers/soap/79.jpg",
+          "url": "/soap/Sherlock/"
+        },
+        {
+          "type": "series",
+          "id": "Firefly",
+          "title": "Firefly",
+          "year": "2002",
+          "poster": "https://soap4youand.me/assets/covers/soap/23.jpg",
+          "url": "/soap/Firefly/"
+        },
+        {
+          "type": "series",
+          "id": "Band_of_Brothers",
+          "title": "Band of Brothers",
+          "year": "2001",
+          "poster": "https://soap4youand.me/assets/covers/soap/37.jpg",
+          "url": "/soap/Band_of_Brothers/"
+        },
+        {
+          "type": "series",
+          "id": "Breaking_Bad",
+          "title": "Breaking Bad",
+          "year": "2008",
+          "poster": "https://soap4youand.me/assets/covers/soap/34.jpg",
+          "url": "/soap/Breaking_Bad/"
+        },
+        {
+          "type": "series",
+          "id": "Better_Call_Saul",
+          "title": "Better Call Saul",
+          "year": "2015",
+          "poster": "https://soap4youand.me/assets/covers/soap/482.jpg",
+          "url": "/soap/Better_Call_Saul/"
+        },
+        {
+          "type": "series",
+          "id": "DARK",
+          "title": "DARK",
+          "year": "2017",
+          "poster": "https://soap4youand.me/assets/covers/soap/884.jpg",
+          "url": "/soap/DARK/"
+        },
+        {
+          "type": "series",
+          "id": "The_Wire",
+          "title": "The Wire",
+          "year": "2002",
+          "poster": "https://soap4youand.me/assets/covers/soap/53.jpg",
+          "url": "/soap/The_Wire/"
+        },
+        {
+          "type": "series",
+          "id": "Prison_Break",
+          "title": "Prison Break",
+          "year": "2005",
+          "poster": "https://soap4youand.me/assets/covers/soap/57.jpg",
+          "url": "/soap/Prison_Break/"
+        },
+        {
+          "type": "series",
+          "id": "True_Detective",
+          "title": "True Detective",
+          "year": "2014",
+          "poster": "https://soap4youand.me/assets/covers/soap/411.jpg",
+          "url": "/soap/True_Detective/"
+        },
+        {
+          "type": "series",
+          "id": "The_Sopranos",
+          "title": "The Sopranos",
+          "year": "1999",
+          "poster": "https://soap4youand.me/assets/covers/soap/51.jpg",
+          "url": "/soap/The_Sopranos/"
+        },
+        {
+          "type": "series",
+          "id": "Scenes_from_a_Marriage",
+          "title": "Scenes from a Marriage",
+          "year": "2021",
+          "poster": "https://soap4youand.me/assets/covers/soap/1538.jpg",
+          "url": "/soap/Scenes_from_a_Marriage/"
+        },
+        {
+          "type": "series",
+          "id": "Dexter",
+          "title": "Dexter",
+          "year": "2006",
+          "poster": "https://soap4youand.me/assets/covers/soap/33.jpg",
+          "url": "/soap/Dexter/"
+        },
+        {
+          "type": "series",
+          "id": "Rome",
+          "title": "Rome",
+          "year": "2005",
+          "poster": "https://soap4youand.me/assets/covers/soap/139.jpg",
+          "url": "/soap/Rome/"
+        },
+        {
+          "type": "series",
+          "id": "Fargo",
+          "title": "Fargo",
+          "year": "2014",
+          "poster": "https://soap4youand.me/assets/covers/soap/429.jpg",
+          "url": "/soap/Fargo/"
+        },
+        {
+          "type": "series",
+          "id": "Mindhunter",
+          "title": "Mindhunter",
+          "year": "2017",
+          "poster": "https://soap4youand.me/assets/covers/soap/874.jpg",
+          "url": "/soap/Mindhunter/"
+        }
+      ]
+    },
+    {
+      "id": "d0aadb34-6d72-4169-8310-30ff779c6e0b",
+      "title": "Анимация",
+      "items": [
+        {
+          "type": "series",
+          "id": "Love_Death_and_Robots",
+          "title": "Love Death and Robots",
+          "year": "2019",
+          "poster": "https://soap4youand.me/assets/covers/soap/997.jpg",
+          "url": "/soap/Love_Death_and_Robots/"
+        },
+        {
+          "type": "series",
+          "id": "Avatar_The_Last_Airbender",
+          "title": "Avatar The Last Airbender",
+          "year": "2005",
+          "poster": "https://soap4youand.me/assets/covers/soap/400.jpg",
+          "url": "/soap/Avatar_The_Last_Airbender/"
+        },
+        {
+          "type": "series",
+          "id": "Arcane",
+          "title": "Arcane",
+          "year": "2021",
+          "poster": "https://soap4youand.me/assets/covers/soap/1539.jpg",
+          "url": "/soap/Arcane/"
+        },
+        {
+          "type": "series",
+          "id": "Invincible",
+          "title": "Invincible",
+          "year": "2021",
+          "poster": "https://soap4youand.me/assets/covers/soap/1449.jpg",
+          "url": "/soap/Invincible/"
+        },
+        {
+          "type": "series",
+          "id": "Over_The_Garden_Wall",
+          "title": "Over The Garden Wall",
+          "year": "2014",
+          "poster": "https://soap4youand.me/assets/covers/soap/521.jpg",
+          "url": "/soap/Over_The_Garden_Wall/"
+        },
+        {
+          "type": "series",
+          "id": "Rick_and_Morty",
+          "title": "Unknown",
+          "year": "",
+          "poster": "https://soap4youand.me/assets/covers/soap/408.jpg",
+          "url": "/soap/Rick_and_Morty/"
+        },
+        {
+          "type": "series",
+          "id": "The_Midnight_Gospel",
+          "title": "The Midnight Gospel",
+          "year": "2020",
+          "poster": "https://soap4youand.me/assets/covers/soap/1180.jpg",
+          "url": "/soap/The_Midnight_Gospel/"
+        }
+      ]
+    },
+    {
+      "id": "d6362f6c-a5da-4f19-a2fa-3363e00484c8",
+      "title": "4k UHD Special",
+      "items": [
+        {
+          "type": "movie",
+          "id": "544",
+          "title": "F1: The Movie",
+          "year": "2025",
+          "poster": "https://soap4youand.me/assets/covers/movies/544_small.jpg",
+          "url": "/movies/544/"
+        },
+        {
+          "type": "movie",
+          "id": "165",
+          "title": "Blade Runner 2049",
+          "year": "2017",
+          "poster": "https://soap4youand.me/assets/covers/movies/165_small.jpg",
+          "url": "/movies/165/"
+        },
+        {
+          "type": "movie",
+          "id": "118",
+          "title": "Mad Max: Fury Road",
+          "year": "2015",
+          "poster": "https://soap4youand.me/assets/covers/movies/118_small.jpg",
+          "url": "/movies/118/"
+        },
+        {
+          "type": "movie",
+          "id": "567",
+          "title": "Tron: Legacy",
+          "year": "2010",
+          "poster": "https://soap4youand.me/assets/covers/movies/567_small.jpg",
+          "url": "/movies/567/"
+        },
+        {
+          "type": "movie",
+          "id": "584",
+          "title": "Sunshine",
+          "year": "2007",
+          "poster": "https://soap4youand.me/assets/covers/movies/584_small.jpg",
+          "url": "/movies/584/"
+        },
+        {
+          "type": "movie",
+          "id": "303",
+          "title": "Ford v Ferrari",
+          "year": "2019",
+          "poster": "https://soap4youand.me/assets/covers/movies/303_small.jpg",
+          "url": "/movies/303/"
+        },
+        {
+          "type": "movie",
+          "id": "405",
+          "title": "Top Gun: Maverick",
+          "year": "2022",
+          "poster": "https://soap4youand.me/assets/covers/movies/405_small.jpg",
+          "url": "/movies/405/"
+        },
+        {
+          "type": "movie",
+          "id": "33",
+          "title": "Dune: Part Two",
+          "year": "2024",
+          "poster": "https://soap4youand.me/assets/covers/movies/33_small.jpg",
+          "url": "/movies/33/"
+        }
+      ]
+    },
+    {
+      "id": "e472f1d4-b6e2-4b75-9541-8d26e8b987ca",
+      "title": "Домашний канон",
+      "items": [
+        {
+          "type": "movie",
+          "id": "180",
+          "title": "The Matrix",
+          "year": "1999",
+          "poster": "https://soap4youand.me/assets/covers/movies/180_small.jpg",
+          "url": "/movies/180/"
+        },
+        {
+          "type": "movie",
+          "id": "135",
+          "title": "The Lord of the Rings: The Fellowship of the Ring",
+          "year": "2001",
+          "poster": "https://soap4youand.me/assets/covers/movies/135_small.jpg",
+          "url": "/movies/135/"
+        },
+        {
+          "type": "movie",
+          "id": "228",
+          "title": "Fight Club",
+          "year": "1999",
+          "poster": "https://soap4youand.me/assets/covers/movies/228_small.jpg",
+          "url": "/movies/228/"
+        },
+        {
+          "type": "movie",
+          "id": "33",
+          "title": "Dune: Part Two",
+          "year": "2024",
+          "poster": "https://soap4youand.me/assets/covers/movies/33_small.jpg",
+          "url": "/movies/33/"
+        },
+        {
+          "type": "movie",
+          "id": "616",
+          "title": "Forrest Gump",
+          "year": "1994",
+          "poster": "https://soap4youand.me/assets/covers/movies/616_small.jpg",
+          "url": "/movies/616/"
+        },
+        {
+          "type": "movie",
+          "id": "253",
+          "title": "Inception",
+          "year": "2010",
+          "poster": "https://soap4youand.me/assets/covers/movies/253_small.jpg",
+          "url": "/movies/253/"
+        },
+        {
+          "type": "movie",
+          "id": "406",
+          "title": "Pirates of the Caribbean: The Curse of the Black Pearl",
+          "year": "2003",
+          "poster": "https://soap4youand.me/assets/covers/movies/406_small.jpg",
+          "url": "/movies/406/"
+        },
+        {
+          "type": "movie",
+          "id": "195",
+          "title": "Terminator 2: Judgment Day",
+          "year": "1991",
+          "poster": "https://soap4youand.me/assets/covers/movies/195_small.jpg",
+          "url": "/movies/195/"
+        },
+        {
+          "type": "movie",
+          "id": "288",
+          "title": "The Godfather",
+          "year": "1972",
+          "poster": "https://soap4youand.me/assets/covers/movies/288_small.jpg",
+          "url": "/movies/288/"
+        },
+        {
+          "type": "movie",
+          "id": "18",
+          "title": "The Shawshank Redemption",
+          "year": "1994",
+          "poster": "https://soap4youand.me/assets/covers/movies/18_small.jpg",
+          "url": "/movies/18/"
+        },
+        {
+          "type": "movie",
+          "id": "530",
+          "title": "Die Hard",
+          "year": "1988",
+          "poster": "https://soap4youand.me/assets/covers/movies/530_small.jpg",
+          "url": "/movies/530/"
+        },
+        {
+          "type": "movie",
+          "id": "301",
+          "title": "Catch Me If You Can",
+          "year": "2002",
+          "poster": "https://soap4youand.me/assets/covers/movies/301_small.jpg",
+          "url": "/movies/301/"
+        },
+        {
+          "type": "movie",
+          "id": "240",
+          "title": "Back to the Future",
+          "year": "1985",
+          "poster": "https://soap4youand.me/assets/covers/movies/240_small.jpg",
+          "url": "/movies/240/"
+        },
+        {
+          "type": "movie",
+          "id": "2",
+          "title": "Harry Potter 1",
+          "year": "2001",
+          "poster": "https://soap4youand.me/assets/covers/movies/2_small.jpg",
+          "url": "/movies/2/"
+        }
+      ]
+    },
+    {
+      "id": "71a5406d-2846-45f9-9144-3b0be2816a74",
+      "title": "Космические просторы",
+      "items": [
+        {
+          "type": "series",
+          "id": "The_Expanse",
+          "title": "The Expanse",
+          "year": "2015",
+          "poster": "https://soap4youand.me/assets/covers/soap/568.jpg",
+          "url": "/soap/The_Expanse/"
+        },
+        {
+          "type": "series",
+          "id": "Star_Wars_Andor",
+          "title": "Star Wars Andor",
+          "year": "2022",
+          "poster": "https://soap4youand.me/assets/covers/soap/1667.jpg",
+          "url": "/soap/Star_Wars_Andor/"
+        },
+        {
+          "type": "series",
+          "id": "Firefly",
+          "title": "Firefly",
+          "year": "2002",
+          "poster": "https://soap4youand.me/assets/covers/soap/23.jpg",
+          "url": "/soap/Firefly/"
+        },
+        {
+          "type": "series",
+          "id": "Final_Space",
+          "title": "Final Space",
+          "year": "2018",
+          "poster": "https://soap4youand.me/assets/covers/soap/914.jpg",
+          "url": "/soap/Final_Space/"
+        },
+        {
+          "type": "series",
+          "id": "Loki",
+          "title": "Loki",
+          "year": "2021",
+          "poster": "https://soap4youand.me/assets/covers/soap/1490.jpg",
+          "url": "/soap/Loki/"
+        },
+        {
+          "type": "series",
+          "id": "WandaVision",
+          "title": "WandaVision",
+          "year": "2021",
+          "poster": "https://soap4youand.me/assets/covers/soap/1407.jpg",
+          "url": "/soap/WandaVision/"
+        }
+      ]
+    }
+  ]
+}
