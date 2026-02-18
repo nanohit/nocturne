@@ -33,7 +33,24 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "London2006)")
 
 app = FastAPI(title="alphy")
 
-LISTS_FILE = os.path.join(os.path.dirname(__file__), "data", "admin_lists.json")
+LEGACY_LISTS_FILE = os.path.join(os.path.dirname(__file__), "data", "admin_lists.json")
+ADMIN_LISTS_FILE_ENV = os.getenv("ADMIN_LISTS_FILE")
+ADMIN_LISTS_DIR_ENV = os.getenv("ADMIN_LISTS_DIR")
+RENDER_PERSISTENT_DIR = os.getenv("RENDER_DISK_PATH", "/var/data")
+_LISTS_STORAGE_READY = False
+
+
+def _resolve_lists_file() -> str:
+    if ADMIN_LISTS_FILE_ENV:
+        return ADMIN_LISTS_FILE_ENV
+    if ADMIN_LISTS_DIR_ENV:
+        return os.path.join(ADMIN_LISTS_DIR_ENV, "admin_lists.json")
+    if os.path.isdir(RENDER_PERSISTENT_DIR):
+        return os.path.join(RENDER_PERSISTENT_DIR, "admin_lists.json")
+    return LEGACY_LISTS_FILE
+
+
+LISTS_FILE = _resolve_lists_file()
 
 
 def _decode_admin_token(token: str) -> Optional[tuple[str, str]]:
@@ -66,7 +83,16 @@ def require_admin(request: Request, allow_query: bool = True) -> None:
 
 
 def _load_admin_lists() -> dict:
+    _ensure_lists_storage_initialized()
     if not os.path.exists(LISTS_FILE):
+        if os.path.exists(LEGACY_LISTS_FILE):
+            try:
+                with open(LEGACY_LISTS_FILE, "r", encoding="utf-8") as handle:
+                    data = json.load(handle)
+                    if isinstance(data, dict) and isinstance(data.get("lists"), list):
+                        return data
+            except Exception:
+                pass
         return {"lists": []}
     try:
         with open(LISTS_FILE, "r", encoding="utf-8") as handle:
@@ -79,11 +105,19 @@ def _load_admin_lists() -> dict:
 
 
 def _save_admin_lists(payload: dict) -> None:
+    _ensure_lists_storage_initialized()
     os.makedirs(os.path.dirname(LISTS_FILE), exist_ok=True)
     tmp_path = LISTS_FILE + ".tmp"
     with open(tmp_path, "w", encoding="utf-8") as handle:
         json.dump(payload, handle, ensure_ascii=False, indent=2)
     os.replace(tmp_path, LISTS_FILE)
+    # Keep a mirrored copy in the legacy path for easier recovery/debug.
+    if LISTS_FILE != LEGACY_LISTS_FILE:
+        os.makedirs(os.path.dirname(LEGACY_LISTS_FILE), exist_ok=True)
+        legacy_tmp = LEGACY_LISTS_FILE + ".tmp"
+        with open(legacy_tmp, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle, ensure_ascii=False, indent=2)
+        os.replace(legacy_tmp, LEGACY_LISTS_FILE)
 
 
 def _normalize_admin_lists(payload: dict) -> dict:
@@ -116,6 +150,32 @@ def _normalize_admin_lists(payload: dict) -> dict:
             "items": items,
         })
     return {"lists": normalized}
+
+
+def _ensure_lists_storage_initialized() -> None:
+    global _LISTS_STORAGE_READY
+    if _LISTS_STORAGE_READY:
+        return
+    _LISTS_STORAGE_READY = True
+
+    if LISTS_FILE == LEGACY_LISTS_FILE:
+        return
+
+    os.makedirs(os.path.dirname(LISTS_FILE), exist_ok=True)
+    if os.path.exists(LISTS_FILE):
+        return
+
+    if os.path.exists(LEGACY_LISTS_FILE):
+        try:
+            with open(LEGACY_LISTS_FILE, "r", encoding="utf-8") as src:
+                data = json.load(src)
+            if isinstance(data, dict) and isinstance(data.get("lists"), list):
+                tmp_path = LISTS_FILE + ".tmp"
+                with open(tmp_path, "w", encoding="utf-8") as dst:
+                    json.dump(data, dst, ensure_ascii=False, indent=2)
+                os.replace(tmp_path, LISTS_FILE)
+        except Exception:
+            pass
 
 
 @app.get("/health")
@@ -1031,6 +1091,8 @@ async def startup():
     """
     # Fast init - just sets up HTTP client, no blocking network calls
     await initialize()
+    _ensure_lists_storage_initialized()
+    print(f"Admin lists storage file: {LISTS_FILE}")
     if SOAP_LOGIN and SOAP_PASSWORD:
         try:
             await login_to_soap()
