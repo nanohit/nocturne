@@ -213,7 +213,15 @@ async def soap_movie(movie_id: str):
     file_match = re.search(r'file:\s*["\']([^"\']+)["\']', html)
     if not file_match:
         raise HTTPException(status_code=400, detail="Could not find stream URL")
-    stream_url = file_match.group(1)
+    stream_url = file_match.group(1).replace("\\/", "/")
+    stream_url = _normalize_soap_url(stream_url) or stream_url
+    stream_type = "hls"
+    if stream_url:
+        lowered = stream_url.lower()
+        if lowered.endswith(".mp4"):
+            stream_type = "mp4"
+        elif lowered.endswith(".m3u8") or "/hls/" in lowered or lowered.endswith("/"):
+            stream_type = "hls"
 
     title_match = re.search(r'<h1[^>]*>([^<]+)', html)
     title = title_match.group(1).strip() if title_match else f"Movie {movie_id}"
@@ -242,6 +250,7 @@ async def soap_movie(movie_id: str):
         "id": movie_id,
         "title": title,
         "stream_url": stream_url,
+        "stream_type": stream_type,
         "poster": poster,
         "subtitles": subtitles,
     }
@@ -382,20 +391,22 @@ async def soap_stream(
     if not data.get("ok"):
         raise HTTPException(status_code=400, detail=data.get("msg", "Failed to get stream URL"))
 
-    stream_url = data.get("stream")
+    stream_url = _normalize_soap_url(data.get("stream")) or data.get("stream")
     stream_type = "hls"
-
-    if stream_url and "storage2.soap4youand.me" in stream_url:
-        # Return the storage2 URL directly; the client will follow the redirect
-        # and receive a CDN URL that matches their IP.
-        stream_type = "mp4"
-
     if stream_url:
-        if stream_url.endswith(".m3u8") or "/hls/" in stream_url:
-            stream_type = "hls"
-        elif not stream_url.endswith("/"):
+        lowered = stream_url.lower()
+        parsed_stream = urlparse(stream_url)
+        is_soap_cdn = parsed_stream.netloc.endswith(ALLOWED_SOAP_CDN_HOST_SUFFIX)
+
+        if lowered.endswith(".mp4"):
             stream_type = "mp4"
-        elif stream_url.endswith("/") and ("cdn-fi" in stream_url or "storage2.soap4youand.me" in stream_url):
+        elif lowered.endswith(".m3u8") or "/hls/" in lowered or lowered.endswith("/"):
+            stream_type = "hls"
+        elif is_soap_cdn:
+            # SOAP CDN/storage URLs are often HLS manifests behind redirects
+            # and should be handled through our HLS proxy.
+            stream_type = "hls"
+        else:
             stream_type = "mp4"
 
     subtitles = {}
@@ -469,7 +480,12 @@ async def proxy_subtitle(src: str):
 
 
 @app.get("/api/soap/hls")
-async def proxy_soap_hls(src: str, request: Request, cdn: Optional[str] = None):
+async def proxy_soap_hls(
+    src: str,
+    request: Request,
+    cdn: Optional[str] = None,
+    hevc: Optional[str] = None,
+):
     """Proxy only HLS playlists; segments stay on CDN."""
     if not src:
         raise HTTPException(status_code=400, detail="Missing playlist source")
@@ -478,7 +494,11 @@ async def proxy_soap_hls(src: str, request: Request, cdn: Optional[str] = None):
         print(f"SOAP HLS playlist proxy: cdn={cdn}")
 
     parsed = urlparse(src)
-    if parsed.scheme not in ("http", "https") or not parsed.netloc.endswith(ALLOWED_SOAP_CDN_HOST_SUFFIX):
+    allowed_playlist_hosts = {"soap4youand.me", "www.soap4youand.me"}
+    if parsed.scheme not in ("http", "https") or (
+        parsed.netloc not in allowed_playlist_hosts and
+        not parsed.netloc.endswith(ALLOWED_SOAP_CDN_HOST_SUFFIX)
+    ):
         raise HTTPException(status_code=400, detail="Invalid playlist source")
 
     client = await get_soap_client()
@@ -487,9 +507,16 @@ async def proxy_soap_hls(src: str, request: Request, cdn: Optional[str] = None):
         raise HTTPException(status_code=resp.status_code, detail="Playlist not found")
 
     content_type = resp.headers.get("content-type", "")
-    if "mpegurl" in content_type or src.endswith(".m3u8"):
-        base_url = src.rsplit("/", 1)[0] + "/"
-        rewritten = rewrite_soap_m3u8(resp.text, base_url, cdn)
+    body_text = resp.text
+    final_url = str(resp.url)
+    is_playlist = _is_probably_m3u8(content_type, final_url, body_text)
+
+    if is_playlist:
+        prefer_non_hevc = hevc == "0" if hevc in {"0", "1"} else (not _is_safari_user_agent(request))
+        if prefer_non_hevc:
+            body_text = filter_non_hevc_variants(body_text)
+        base_url = final_url.rsplit("/", 1)[0] + "/"
+        rewritten = rewrite_soap_m3u8(body_text, base_url, cdn)
         return Response(
             content=rewritten,
             media_type="application/x-mpegURL",
@@ -581,7 +608,11 @@ async def get_soap_client() -> httpx.AsyncClient:
             timeout=httpx.Timeout(30.0, connect=10.0),
             follow_redirects=True,
             headers={
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/133.0.0.0 Safari/537.36"
+                ),
                 "Accept-Language": "en-US,en;q=0.9",
             },
         )
@@ -670,6 +701,83 @@ def _rewrite_cdn_host(url: str, cdn: Optional[str]) -> str:
         lambda m: f"://{cdn}{m.group(2)}.soap4youand.me",
         url
     )
+
+
+def _is_probably_m3u8(content_type: str, url: str, body_text: str) -> bool:
+    lowered_type = (content_type or "").lower()
+    if "mpegurl" in lowered_type or "vnd.apple.mpegurl" in lowered_type:
+        return True
+    lowered_url = (url or "").lower()
+    if lowered_url.endswith(".m3u8") or ".m3u8?" in lowered_url:
+        return True
+    return (body_text or "").lstrip().startswith("#EXTM3U")
+
+
+def _is_safari_user_agent(request: Request) -> bool:
+    ua = request.headers.get("user-agent", "").lower()
+    if "safari" not in ua:
+        return False
+    blocked = ("chrome", "crios", "chromium", "edg", "opr", "firefox", "fxios")
+    return not any(token in ua for token in blocked)
+
+
+def filter_non_hevc_variants(content: str) -> str:
+    """
+    Remove HEVC-only variants from master playlists on non-Safari browsers.
+    If filtering would remove all stream variants, return the original content.
+    """
+    if "#EXT-X-STREAM-INF" not in content and "#EXT-X-I-FRAME-STREAM-INF" not in content:
+        return content
+
+    lines = content.splitlines()
+    kept_lines: list[str] = []
+    kept_stream_variants = 0
+    original_stream_variants = 0
+    i = 0
+
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+
+        if stripped.startswith("#EXT-X-I-FRAME-STREAM-INF"):
+            codec_match = re.search(r'CODECS="([^"]+)"', stripped, flags=re.IGNORECASE)
+            codecs = codec_match.group(1).lower() if codec_match else ""
+            if "hvc1" in codecs or "hev1" in codecs:
+                i += 1
+                continue
+            kept_lines.append(line)
+            i += 1
+            continue
+
+        if stripped.startswith("#EXT-X-STREAM-INF"):
+            original_stream_variants += 1
+            codec_match = re.search(r'CODECS="([^"]+)"', stripped, flags=re.IGNORECASE)
+            codecs = codec_match.group(1).lower() if codec_match else ""
+            drop_variant = "hvc1" in codecs or "hev1" in codecs
+
+            if drop_variant:
+                i += 1
+                if i < len(lines) and not lines[i].lstrip().startswith("#"):
+                    i += 1
+                continue
+
+            kept_lines.append(line)
+            i += 1
+            if i < len(lines):
+                kept_lines.append(lines[i])
+                if not lines[i].lstrip().startswith("#"):
+                    kept_stream_variants += 1
+                i += 1
+            continue
+
+        kept_lines.append(line)
+        i += 1
+
+    if original_stream_variants == 0:
+        return content
+    if kept_stream_variants == 0:
+        return content
+    return "\n".join(kept_lines)
 
 
 def rewrite_soap_m3u8(content: str, base_url: str, cdn: Optional[str] = None) -> str:
