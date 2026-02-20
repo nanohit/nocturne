@@ -13,6 +13,7 @@
     <!-- IBM Plex Sans -->
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
     <link href="/static/admin-lists.css" rel="stylesheet">
+    <link href="/static/css/player-sidebar.css" rel="stylesheet">
     
     <style>
         :root {
@@ -282,21 +283,37 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 15px;
+            margin-bottom: 10px;
             flex-wrap: wrap;
-            gap: 10px;
+            gap: 8px;
         }
-        .player-title { font-size: 20px; }
+        .player-title {
+            font-size: 18px;
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .player-title-tag {
+            color: var(--text);
+            font-size: 16px;
+            letter-spacing: 0.03em;
+        }
+        .player-title-num {
+            color: var(--accent);
+            font-weight: 600;
+        }
         .player-controls { display: flex; gap: 10px; flex-wrap: wrap; }
         .player-controls select {
-            padding: 8px 12px;
+            padding: 6px 10px;
             border: 1px solid #1b1b1b;
             border-radius: 10px;
             background: #0f0f0f;
             color: #fff;
+            font-size: 14px;
         }
         .video-container {
-            width: 100%;
+            width: 95%;
             background: #000;
             border-radius: 8px;
             overflow: hidden;
@@ -305,42 +322,48 @@
         .video-js { width: 100%; height: auto; aspect-ratio: 16/9; max-height: 80vh; }
 
         /* Episode Section */
-        .episode-section { display: none; margin-bottom: 30px; }
+        .episode-section { display: none; margin-top: 12px; padding-bottom: 6px; }
         .episode-section.active { display: block; }
         .season-tabs {
             display: flex;
-            gap: 10px;
-            margin-bottom: 15px;
+            gap: 9px;
+            margin-bottom: 11px;
             flex-wrap: wrap;
         }
         .season-tab {
-            padding: 8px 16px;
+            padding: 7px 14px;
             border: 1px solid #1b1b1b;
             border-radius: 10px;
             background: #0f0f0f;
             color: #fff;
             cursor: pointer;
+            font-size: 15px;
         }
         .season-tab.active {
-            background: var(--accent);
-            color: #000;
+            background: #0f0f0f;
+            color: #fff;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 1px rgba(255, 255, 0, 0.35);
         }
         .episodes-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-            gap: 10px;
+            gap: 9px;
         }
         .episode-btn {
-            padding: 12px;
+            padding: 10px;
             border: 1px solid #1b1b1b;
             border-radius: 10px;
             background: #0f0f0f;
             color: #fff;
             cursor: pointer;
+            font-size: 15px;
         }
         .episode-btn.active {
-            background: var(--accent);
-            color: #000;
+            background: #0f0f0f;
+            color: #fff;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 1px rgba(255, 255, 0, 0.35);
         }
 
         /* Results */
@@ -728,32 +751,69 @@
         </div>
 
         <div id="playerSection" class="player-section">
-            <div class="player-header">
-                <h2 id="playerTitle" class="player-title"></h2>
-                <div class="player-controls">
-                    <select id="qualitySelect" onchange="changeQuality()" style="display:none;"></select>
-                    <select id="speedSelect" onchange="changeSpeed()">
-                        <option value="0.5">0.5x</option>
-                        <option value="0.75">0.75x</option>
-                        <option value="1" selected>1x</option>
-                        <option value="1.25">1.25x</option>
-                        <option value="1.5">1.5x</option>
-                        <option value="2">2x</option>
-                    </select>
+            <div id="playerLayout" class="player-layout">
+                <aside id="playerMetaShell" class="player-meta-shell">
+                    <button id="playerMetaToggle" class="player-meta-toggle" type="button" aria-label="Hide details panel">&#8249;</button>
+                    <div id="playerMetaPanel" class="player-meta-panel">
+                        <div id="playerMetaCoverWrap" class="player-meta-cover-wrap">
+                            <button id="playerMetaBookmark" class="player-meta-bookmark" type="button" aria-label="Bookmark">
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z"></path>
+                                </svg>
+                            </button>
+                            <button id="playerMetaCoverPrev" class="player-meta-cover-nav prev" type="button" aria-label="Previous poster">&#8249;</button>
+                            <button id="playerMetaCoverNext" class="player-meta-cover-nav next" type="button" aria-label="Next poster">&#8250;</button>
+                            <div id="playerMetaCoverCounter" class="player-meta-cover-counter"></div>
+                            <img id="playerMetaCover" class="player-meta-cover" src="" alt="">
+                        </div>
+
+                        <div id="playerMetaRatings" class="player-meta-ratings">
+                            <a id="playerRatingImdb" class="player-rating-link">
+                                <span class="player-rating-label">IMDb</span>
+                                <span id="playerRatingImdbValue" class="player-rating-value">—</span>
+                            </a>
+                            <a id="playerRatingKp" class="player-rating-link">
+                                <span class="player-rating-label">КП</span>
+                                <span id="playerRatingKpValue" class="player-rating-value">—</span>
+                            </a>
+                            <a id="playerRatingLbxd" class="player-rating-link">
+                                <span class="player-rating-label">Lbxd</span>
+                                <span id="playerRatingLbxdValue" class="player-rating-value">—</span>
+                            </a>
+                        </div>
+
+                        <div id="playerMetaYear" class="player-meta-year empty"></div>
+                        <p id="playerMetaDescription" class="player-meta-description empty"></p>
+                        <div class="player-meta-loading">Loading</div>
+                    </div>
+                </aside>
+
+                <div class="player-main">
+                    <div class="player-header">
+                        <h2 id="playerTitle" class="player-title"></h2>
+                        <div class="player-controls">
+                            <select id="episodeQualitySelect" class="series-control" onchange="updateEpisodeSelection()" style="display:none;"></select>
+                            <select id="episodeTranslationSelect" class="series-control" onchange="updateEpisodeSelection()" style="display:none;"></select>
+                            <select id="qualitySelect" onchange="changeQuality()" style="display:none;"></select>
+                            <select id="speedSelect" onchange="changeSpeed()">
+                                <option value="0.5">0.5x</option>
+                                <option value="0.75">0.75x</option>
+                                <option value="1" selected>1x</option>
+                                <option value="1.25">1.25x</option>
+                                <option value="1.5">1.5x</option>
+                                <option value="2">2x</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="video-container">
+                        <video id="videoPlayer" class="video-js vjs-big-play-centered" controls preload="auto"></video>
+                    </div>
+                    <div id="episodeSection" class="episode-section">
+                        <div id="seasonTabs" class="season-tabs"></div>
+                        <div id="episodesGrid" class="episodes-grid"></div>
+                    </div>
                 </div>
             </div>
-            <div class="video-container">
-                <video id="videoPlayer" class="video-js vjs-big-play-centered" controls preload="auto"></video>
-            </div>
-        </div>
-
-        <div id="episodeSection" class="episode-section">
-            <div class="player-controls" style="margin-bottom: 15px;">
-                <select id="episodeQualitySelect" onchange="updateEpisodeSelection()"></select>
-                <select id="episodeTranslationSelect" onchange="updateEpisodeSelection()"></select>
-            </div>
-            <div id="seasonTabs" class="season-tabs"></div>
-            <div id="episodesGrid" class="episodes-grid"></div>
         </div>
 
         <div id="resultsSection" class="results-section">
@@ -784,6 +844,7 @@
 
     <script src="/static/js/continue.js"></script>
     <script src="/static/js/admin-lists.js"></script>
+    <script src="/static/js/player-sidebar.js"></script>
     <script>
         const API_BASE = '/api/soap';
         const ADMIN_STORAGE_KEY = 'alphyAdminAuth';
@@ -1044,11 +1105,13 @@
                 bookmarks.splice(index, 1);
                 saveBookmarks(bookmarks);
                 updateBookmarkCount();
+                window.alphyPlayerMeta?.syncBookmark?.();
                 return false;
             }
             bookmarks.unshift(normalizeBookmarkItem(item));
             saveBookmarks(bookmarks);
             updateBookmarkCount(true);
+            window.alphyPlayerMeta?.syncBookmark?.();
             return true;
         }
 
@@ -1169,6 +1232,34 @@
         let qualitiesMap = {};
         let translationsMap = {};
         let player = null;
+
+        function setSeriesControlsVisible(visible) {
+            const quality = document.getElementById('episodeQualitySelect');
+            const translation = document.getElementById('episodeTranslationSelect');
+            if (quality) quality.style.display = visible ? 'inline-block' : 'none';
+            if (translation) translation.style.display = visible ? 'inline-block' : 'none';
+        }
+
+        function renderPlayerTitle(baseTitle, season = null, episode = null) {
+            const titleEl = document.getElementById('playerTitle');
+            if (!titleEl) return;
+            const safeTitle = (baseTitle || '').replace(/[&<>"']/g, (ch) => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[ch]));
+
+            const hasSeason = season !== null && season !== undefined && season !== '';
+            const hasEpisode = episode !== null && episode !== undefined && episode !== '';
+            if (hasSeason && hasEpisode && Number.isFinite(Number(season)) && Number.isFinite(Number(episode))) {
+                titleEl.innerHTML = `${safeTitle} <span class="player-title-tag">S<span class="player-title-num">${Number(season)}</span>E<span class="player-title-num">${Number(episode)}</span></span>`;
+                return;
+            }
+
+            titleEl.textContent = baseTitle || '';
+        }
 
         function getAdminAuth() {
             try {
@@ -1358,6 +1449,7 @@
             currentContent = item;
             showLoading();
             hideAll();
+            window.alphyPlayerMeta?.setItem?.(currentContent);
 
             try {
                 if (item.type === 'movie') {
@@ -1371,6 +1463,8 @@
         }
 
         async function playMovie(movieId, resumeTime = 0) {
+            setSeriesControlsVisible(false);
+            currentEpisodeData = null;
             const response = await fetch(`${API_BASE}/movie/${movieId}`);
             const data = await response.json();
             if (currentContent && !currentContent.title) {
@@ -1379,6 +1473,7 @@
             if (currentContent && !currentContent.poster) {
                 currentContent.poster = data.poster;
             }
+            window.alphyPlayerMeta?.setItem?.(currentContent);
 
             if (data.stream_url) {
                 if (data.stream_type === 'mp4') {
@@ -1395,6 +1490,7 @@
         async function resumeSeries(item, season, episode, resumeTime = 0) {
             showLoading();
             hideAll();
+            setSeriesControlsVisible(true);
             currentContent = {
                 ...item,
                 type: 'series',
@@ -1406,9 +1502,10 @@
                 currentContent.seriesData = data;
                 currentContent.title = currentContent.title || data.title;
                 currentContent.poster = currentContent.poster || data.poster;
+                window.alphyPlayerMeta?.setItem?.(currentContent);
                 seasonData = {};
 
-                await setupSeasons(data, season);
+                await setupSeasons(data, season, false);
                 const selectedSeason = seasonData[season];
                 const epData = selectedSeason?.episodes?.find(ep => ep.episode === episode) || selectedSeason?.episodes?.[0];
                 if (!epData) {
@@ -1423,19 +1520,31 @@
         }
 
         async function loadSeries(slug) {
+            setSeriesControlsVisible(true);
             const response = await fetch(`${API_BASE}/series/${slug}`);
             const data = await response.json();
 
             currentContent.seriesData = data;
+            currentContent.title = currentContent.title || data.title;
+            currentContent.poster = currentContent.poster || data.poster;
+            window.alphyPlayerMeta?.setItem?.(currentContent);
             seasonData = {};
+            const playerSection = document.getElementById('playerSection');
+            renderPlayerTitle(currentContent.title || data.title || '');
+            playerSection.classList.add('active');
+            if (player) {
+                try { player.pause(); } catch {}
+            }
 
             hideLoading();
-            await setupSeasons(data);
+            await setupSeasons(data, null, true);
         }
 
-        async function setupSeasons(data, initialSeason = null) {
-            const seasons = data.seasons || [1];
-            const selected = initialSeason || seasons[0];
+        async function setupSeasons(data, initialSeason = null, autoPlayFirstEpisode = false) {
+            setSeriesControlsVisible(true);
+            const seasons = Array.isArray(data.seasons) && data.seasons.length ? data.seasons : [1];
+            const requested = Number(initialSeason);
+            const selected = Number.isFinite(requested) && seasons.includes(requested) ? requested : seasons[0];
 
             document.getElementById('seasonTabs').innerHTML = seasons.map(s =>
                 `<button class="season-tab ${s === selected ? 'active' : ''}"
@@ -1444,10 +1553,22 @@
 
             await selectSeason(selected);
             document.getElementById('episodeSection').classList.add('active');
+            if (autoPlayFirstEpisode) {
+                const seasonInfo = seasonData[selected];
+                const firstEpisode = (seasonInfo?.episodes || [])[0];
+                if (firstEpisode) {
+                    await playEpisode(firstEpisode, 0);
+                }
+            }
         }
 
         async function selectSeason(season) {
+            if (!Number.isFinite(Number(season))) {
+                return;
+            }
+            season = Number(season);
             currentSeason = season;
+            renderPlayerTitle(currentContent?.title || '');
 
             document.querySelectorAll('.season-tab').forEach(tab => {
                 tab.classList.toggle('active', tab.textContent === `Season ${season}`);
@@ -1455,6 +1576,9 @@
 
             if (!seasonData[season]) {
                 const response = await fetch(`${API_BASE}/series/${currentContent.id}/season/${season}`);
+                if (!response.ok) {
+                    throw new Error(`Failed to load season ${season}`);
+                }
                 seasonData[season] = await response.json();
             }
 
@@ -1479,8 +1603,10 @@
             if (currentQualityId) qualitySelect.value = currentQualityId;
             if (currentTranslationId) translationSelect.value = currentTranslationId;
 
-            document.getElementById('episodesGrid').innerHTML = data.episodes.map(ep =>
-                `<button class="episode-btn" onclick='playEpisode(${JSON.stringify(ep)})'>Ep ${ep.episode}</button>`
+            const episodes = Array.isArray(data.episodes) ? data.episodes : [];
+            currentEpisodeData = null;
+            document.getElementById('episodesGrid').innerHTML = episodes.map(ep =>
+                `<button class="episode-btn" data-episode="${ep.episode}" onclick='playEpisode(${JSON.stringify(ep)})'>Ep ${ep.episode}</button>`
             ).join('');
         }
 
@@ -1494,6 +1620,9 @@
 
         async function playEpisode(episodeData, resumeTime = 0) {
             currentEpisodeData = episodeData;
+            document.querySelectorAll('.episode-btn').forEach(btn => {
+                btn.classList.toggle('active', Number(btn.dataset.episode) === Number(episodeData?.episode));
+            });
 
             try {
                 const variants = episodeData.variants;
@@ -1532,7 +1661,7 @@
                 const data = await response.json();
 
                 if (data.stream_url) {
-                    const title = `${currentContent.title} S${currentSeason}E${episodeData.episode}`;
+                    const title = currentContent.title;
                     playVideo(data.stream_url, title, data.stream_type, data.subtitles || {}, resumeTime);
                 } else {
                     throw new Error('No stream URL');
@@ -1618,8 +1747,16 @@
                 }
             }
 
-            document.getElementById('playerTitle').textContent = title;
-            document.getElementById('playerSection').classList.add('active');
+            if (currentContent?.type === 'series' && currentEpisodeData?.episode != null) {
+                renderPlayerTitle(title, currentSeason, currentEpisodeData.episode);
+            } else {
+                renderPlayerTitle(title);
+            }
+            const playerSection = document.getElementById('playerSection');
+            playerSection.classList.add('active');
+            playerSection.classList.remove('prefetch-meta');
+            setSeriesControlsVisible(currentContent?.type === 'series');
+            window.alphyPlayerMeta?.setItem?.(currentContent);
             player.play().catch(() => {});
             window.alphyContinue?.startTracking?.();
         }
@@ -1684,6 +1821,17 @@
             vol = Math.min(1, Math.max(0, vol + delta));
             player.volume(vol);
             if (vol > 0 && player.muted?.()) player.muted(false);
+        }
+
+        function togglePlayback() {
+            if (!player) return;
+            try {
+                if (player.paused?.()) {
+                    player.play()?.catch(() => {});
+                } else {
+                    player.pause?.();
+                }
+            } catch {}
         }
 
         function toggleSubtitles() {
@@ -1756,6 +1904,10 @@
                 }
 
                 switch (code) {
+                    case 'Space':
+                        togglePlayback();
+                        event.preventDefault();
+                        break;
                     case 'KeyC':
                         toggleSubtitles();
                         event.preventDefault();
@@ -1792,7 +1944,14 @@
 
         function hideAll() {
             window.alphyContinue?.captureSnapshot?.();
-            document.getElementById('playerSection').classList.remove('active');
+            window.alphyPlayerMeta?.clear?.();
+            setSeriesControlsVisible(false);
+            if (player) {
+                try { player.pause(); } catch {}
+            }
+            const playerSection = document.getElementById('playerSection');
+            playerSection.classList.remove('active');
+            playerSection.classList.remove('prefetch-meta');
             document.getElementById('episodeSection').classList.remove('active');
             document.getElementById('resultsSection').classList.remove('active');
             document.getElementById('bookmarksSection').classList.remove('active');
@@ -1818,6 +1977,10 @@
         document.addEventListener('DOMContentLoaded', () => {
             updateBookmarkCount();
             bindPlayerShortcuts();
+            window.alphyPlayerMeta?.init?.({
+                isBookmarked: (item) => isBookmarked(item),
+                toggleBookmark: (item) => toggleBookmark(item),
+            });
             window.alphyContinue?.init?.({
                 getPlayer: () => player,
                 getVideoElement: () => player?.el()?.querySelector('video') || null,

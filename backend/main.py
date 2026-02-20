@@ -12,8 +12,10 @@ import re
 import hashlib
 import base64
 import time
-from urllib.parse import urlparse, urljoin, quote
+import difflib
+from urllib.parse import urlparse, urljoin, quote, unquote
 from collections import defaultdict
+from html import unescape
 
 import httpx
 from bs4 import BeautifulSoup
@@ -30,6 +32,8 @@ SOAP_LOGIN = os.getenv("SOAP_LOGIN")
 SOAP_PASSWORD = os.getenv("SOAP_PASSWORD")
 ADMIN_USER = os.getenv("ADMIN_USER", "admin")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "London2006)")
+TMDB_API_KEY = os.getenv("TMDB_API_KEY")
+TMDB_BEARER_TOKEN = os.getenv("TMDB_BEARER_TOKEN")
 
 app = FastAPI(title="alphy")
 
@@ -216,9 +220,8 @@ async def soap_search(q: str = Query(..., min_length=1)):
     """Search movies and series on soap4youand.me."""
     if not SOAP_LOGIN or not SOAP_PASSWORD:
         raise HTTPException(status_code=500, detail="SOAP credentials not configured")
-    await ensure_soap_logged_in()
-    client = await get_soap_client()
-    response = await client.get("https://soap4youand.me/search/", params={"q": q})
+    await ensure_soap_or_503()
+    response = await soap_get("https://soap4youand.me/search/", params={"q": q})
     results = parse_search_results(response.text)
     return {"results": results}
 
@@ -251,12 +254,93 @@ async def soap_meta(
     if cached and now - cached.get("ts", 0) < SOAP_META_TTL_SECONDS:
         return cached.get("data", {})
 
-    await ensure_soap_logged_in()
-    client = await get_soap_client()
-    response = await client.get(target_url)
+    await ensure_soap_or_503()
+    try:
+        response = await soap_get(target_url)
+    except HTTPException:
+        if cached:
+            return cached.get("data", {})
+        raise
+    if response.status_code != 200:
+        if cached:
+            return cached.get("data", {})
+        raise HTTPException(status_code=503, detail="SOAP metadata unavailable")
     data = parse_soap_meta(response.text)
     SOAP_META_CACHE[target_url] = {"ts": now, "data": data}
     return data
+
+
+@app.get("/api/soap/player-meta")
+async def soap_player_meta(
+    type: str = Query(...),
+    id: Optional[str] = Query(None),
+    slug: Optional[str] = Query(None),
+    url: Optional[str] = Query(None),
+    title: Optional[str] = Query(None),
+    year: Optional[str] = Query(None),
+):
+    """Fetch enriched metadata for the desktop player sidebar."""
+    if not SOAP_LOGIN or not SOAP_PASSWORD:
+        raise HTTPException(status_code=500, detail="SOAP credentials not configured")
+
+    item_type = (type or "").strip().lower()
+    if item_type not in {"movie", "series", "soap"}:
+        raise HTTPException(status_code=400, detail="Invalid content type")
+
+    cache_key = _build_player_meta_cache_key(item_type, id, slug, url, title, year)
+    now = time.time()
+    cached = PLAYER_META_CACHE.get(cache_key)
+    if cached and now - cached.get("ts", 0) < PLAYER_META_TTL_SECONDS:
+        return cached.get("data", {})
+
+    target_url = None
+    if url:
+        target_url = _sanitize_soap_page_url(url)
+    elif item_type == "movie" and id:
+        target_url = _sanitize_soap_page_url(f"/movies/{id}/")
+    elif item_type in {"series", "soap"}:
+        series_slug = slug or id
+        if series_slug:
+            target_url = _sanitize_soap_page_url(f"/soap/{series_slug}/")
+
+    if not target_url:
+        raise HTTPException(status_code=400, detail="Invalid soap page url")
+
+    fallback = {
+        "type": "series" if item_type in {"series", "soap"} else "movie",
+        "title": (title or "").strip() or None,
+        "year": year,
+        "duration": None,
+        "description": None,
+        "cover": None,
+        "covers": [],
+        "ratings": {
+            "imdb": {"value": None, "url": None},
+            "kp": {"value": None, "url": None},
+            "lbxd": None,
+        },
+    }
+
+    await ensure_soap_or_503()
+    try:
+        soap_response = await soap_get(target_url)
+    except HTTPException:
+        PLAYER_META_CACHE[cache_key] = {"ts": now, "data": fallback}
+        return fallback
+
+    if soap_response.status_code != 200:
+        PLAYER_META_CACHE[cache_key] = {"ts": now, "data": fallback}
+        return fallback
+
+    soap_data = parse_soap_meta(soap_response.text)
+    enriched = await enrich_player_meta(
+        item_type=item_type,
+        soap_data=soap_data,
+        title=title,
+        year=year,
+    )
+    PLAYER_META_CACHE[cache_key] = {"ts": now, "data": enriched}
+    return enriched
 
 
 @app.get("/api/soap/movie/{movie_id}")
@@ -264,10 +348,8 @@ async def soap_movie(movie_id: str):
     """Get movie details and stream URL."""
     if not SOAP_LOGIN or not SOAP_PASSWORD:
         raise HTTPException(status_code=500, detail="SOAP credentials not configured")
-    await ensure_soap_logged_in()
-    client = await get_soap_client()
-
-    response = await client.get(f"https://soap4youand.me/movies/{movie_id}/")
+    await ensure_soap_or_503()
+    response = await soap_get(f"https://soap4youand.me/movies/{movie_id}/")
     html = response.text
 
     file_match = re.search(r'file:\s*["\']([^"\']+)["\']', html)
@@ -275,13 +357,7 @@ async def soap_movie(movie_id: str):
         raise HTTPException(status_code=400, detail="Could not find stream URL")
     stream_url = file_match.group(1).replace("\\/", "/")
     stream_url = _normalize_soap_url(stream_url) or stream_url
-    stream_type = "hls"
-    if stream_url:
-        lowered = stream_url.lower()
-        if lowered.endswith(".mp4"):
-            stream_type = "mp4"
-        elif lowered.endswith(".m3u8") or "/hls/" in lowered or lowered.endswith("/"):
-            stream_type = "hls"
+    stream_type = await detect_stream_type(stream_url)
 
     title_match = re.search(r'<h1[^>]*>([^<]+)', html)
     title = title_match.group(1).strip() if title_match else f"Movie {movie_id}"
@@ -321,10 +397,8 @@ async def soap_series(slug: str):
     """Get series details including seasons."""
     if not SOAP_LOGIN or not SOAP_PASSWORD:
         raise HTTPException(status_code=500, detail="SOAP credentials not configured")
-    await ensure_soap_logged_in()
-    client = await get_soap_client()
-
-    response = await client.get(f"https://soap4youand.me/soap/{slug}/")
+    await ensure_soap_or_503()
+    response = await soap_get(f"https://soap4youand.me/soap/{slug}/")
     html = response.text
 
     title_match = re.search(r'<h1[^>]*>([^<]+)', html)
@@ -332,6 +406,8 @@ async def soap_series(slug: str):
 
     season_matches = re.findall(r'href="/soap/' + re.escape(slug) + r'/(\d+)/"', html)
     seasons = sorted(list(set(int(s) for s in season_matches)))
+    if not seasons:
+        seasons = [1]
 
     poster_match = re.search(r'<img[^>]*src="(/assets/covers/soap/[^"]+)"', html)
     poster = f"https://soap4youand.me{poster_match.group(1)}" if poster_match else None
@@ -350,10 +426,8 @@ async def soap_season(slug: str, season: int):
     """Get episodes for a season with quality and translation options."""
     if not SOAP_LOGIN or not SOAP_PASSWORD:
         raise HTTPException(status_code=500, detail="SOAP credentials not configured")
-    await ensure_soap_logged_in()
-    client = await get_soap_client()
-
-    response = await client.get(f"https://soap4youand.me/soap/{slug}/{season}/")
+    await ensure_soap_or_503()
+    response = await soap_get(f"https://soap4youand.me/soap/{slug}/{season}/")
     html = response.text
 
     quality_pattern = r'<li><a class="dropdown-item quality-filter"[^>]*data:param="(\d+)"[^>]*>([^<]+)</a></li>'
@@ -425,8 +499,7 @@ async def soap_stream(
     """Get stream URL for a series episode."""
     if not SOAP_LOGIN or not SOAP_PASSWORD:
         raise HTTPException(status_code=500, detail="SOAP credentials not configured")
-    await ensure_soap_logged_in()
-    client = await get_soap_client()
+    await ensure_soap_or_503()
 
     if not token:
         raise HTTPException(status_code=400, detail="API token required")
@@ -434,7 +507,7 @@ async def soap_stream(
     hash_input = token + eid + sid + hash
     request_hash = hashlib.md5(hash_input.encode()).hexdigest()
 
-    api_response = await client.post(
+    api_response = await soap_post(
         f"https://soap4youand.me/api/v2/play/episode/{eid}",
         headers={
             "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
@@ -452,22 +525,7 @@ async def soap_stream(
         raise HTTPException(status_code=400, detail=data.get("msg", "Failed to get stream URL"))
 
     stream_url = _normalize_soap_url(data.get("stream")) or data.get("stream")
-    stream_type = "hls"
-    if stream_url:
-        lowered = stream_url.lower()
-        parsed_stream = urlparse(stream_url)
-        is_soap_cdn = parsed_stream.netloc.endswith(ALLOWED_SOAP_CDN_HOST_SUFFIX)
-
-        if lowered.endswith(".mp4"):
-            stream_type = "mp4"
-        elif lowered.endswith(".m3u8") or "/hls/" in lowered or lowered.endswith("/"):
-            stream_type = "hls"
-        elif is_soap_cdn:
-            # SOAP CDN/storage URLs are often HLS manifests behind redirects
-            # and should be handled through our HLS proxy.
-            stream_type = "hls"
-        else:
-            stream_type = "mp4"
+    stream_type = await detect_stream_type(stream_url)
 
     subtitles = {}
     subs_data = data.get("subs", {})
@@ -513,7 +571,7 @@ async def soap_stream(
 @app.get("/api/subtitle")
 async def proxy_subtitle(src: str):
     """Proxy subtitle files to avoid CORS and normalize to WebVTT."""
-    await ensure_soap_logged_in()
+    await ensure_soap_or_503()
 
     if not src:
         raise HTTPException(status_code=400, detail="Missing subtitle source")
@@ -525,8 +583,7 @@ async def proxy_subtitle(src: str):
     if parsed.scheme not in ("http", "https") or parsed.netloc not in ALLOWED_SUBTITLE_HOSTS:
         raise HTTPException(status_code=400, detail="Invalid subtitle source")
 
-    client = await get_soap_client()
-    response = await client.get(src)
+    response = await soap_get(src)
     if response.status_code != 200:
         raise HTTPException(status_code=404, detail="Subtitle not found")
 
@@ -561,8 +618,7 @@ async def proxy_soap_hls(
     ):
         raise HTTPException(status_code=400, detail="Invalid playlist source")
 
-    client = await get_soap_client()
-    resp = await client.get(src)
+    resp = await soap_get(src)
     if resp.status_code != 200:
         raise HTTPException(status_code=resp.status_code, detail="Playlist not found")
 
@@ -659,6 +715,15 @@ soap_client: httpx.AsyncClient | None = None
 soap_session_token: Optional[str] = None
 SOAP_META_CACHE: dict[str, dict] = {}
 SOAP_META_TTL_SECONDS = 6 * 60 * 60
+PLAYER_META_CACHE: dict[str, dict] = {}
+PLAYER_META_TTL_SECONDS = 24 * 60 * 60
+PLAYER_META_CACHE_VERSION = "imdb-cover-v1"
+_meta_client: httpx.AsyncClient | None = None
+SOAP_LAST_CHECK_TS = 0.0
+SOAP_CHECK_INTERVAL_SECONDS = 90
+SOAP_LOGIN_OK = False
+STREAM_TYPE_CACHE: dict[str, dict] = {}
+STREAM_TYPE_TTL_SECONDS = 12 * 60 * 60
 
 
 async def get_soap_client() -> httpx.AsyncClient:
@@ -679,37 +744,111 @@ async def get_soap_client() -> httpx.AsyncClient:
     return soap_client
 
 
+async def soap_get(url: str, **kwargs) -> httpx.Response:
+    client = await get_soap_client()
+    try:
+        return await client.get(url, **kwargs)
+    except httpx.TimeoutException as exc:
+        raise HTTPException(status_code=503, detail="SOAP upstream timeout") from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=503, detail=f"SOAP upstream error: {exc}") from exc
+
+
+async def soap_post(url: str, **kwargs) -> httpx.Response:
+    client = await get_soap_client()
+    try:
+        return await client.post(url, **kwargs)
+    except httpx.TimeoutException as exc:
+        raise HTTPException(status_code=503, detail="SOAP upstream timeout") from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=503, detail=f"SOAP upstream error: {exc}") from exc
+
+
+async def get_meta_client() -> httpx.AsyncClient:
+    global _meta_client
+    if _meta_client is None or _meta_client.is_closed:
+        _meta_client = httpx.AsyncClient(
+            timeout=httpx.Timeout(15.0, connect=7.0),
+            follow_redirects=True,
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/133.0.0.0 Safari/537.36"
+                ),
+                "Accept-Language": "en-US,en;q=0.9",
+            },
+        )
+    return _meta_client
+
+
 async def login_to_soap():
     """Login to soap4youand.me and establish session"""
-    global soap_session_token
+    global soap_session_token, SOAP_LOGIN_OK, SOAP_LAST_CHECK_TS
 
     if not SOAP_LOGIN or not SOAP_PASSWORD:
         raise RuntimeError("SOAP_LOGIN and SOAP_PASSWORD must be set")
 
-    client = await get_soap_client()
-
     # Get initial page to establish session
-    await client.get("https://soap4youand.me/")
+    try:
+        await soap_get("https://soap4youand.me/")
+    except HTTPException as exc:
+        SOAP_LOGIN_OK = False
+        raise RuntimeError(f"SOAP bootstrap request failed: {exc.detail}") from exc
 
     # Login
-    response = await client.post(
-        "https://soap4youand.me/login/",
-        data={"login": SOAP_LOGIN, "password": SOAP_PASSWORD},
-        headers={"Content-Type": "application/x-www-form-urlencoded"},
-    )
+    try:
+        response = await soap_post(
+            "https://soap4youand.me/login/",
+            data={"login": SOAP_LOGIN, "password": SOAP_PASSWORD},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+    except HTTPException as exc:
+        SOAP_LOGIN_OK = False
+        raise RuntimeError(f"SOAP login request failed: {exc.detail}") from exc
 
     if response.status_code == 200:
+        SOAP_LOGIN_OK = True
+        SOAP_LAST_CHECK_TS = time.time()
         print(f"Logged in to soap4youand.me as {SOAP_LOGIN}")
-    else:
-        print(f"Login failed: {response.status_code}")
+        return
+
+    SOAP_LOGIN_OK = False
+    raise RuntimeError(f"SOAP login failed: {response.status_code}")
 
 
 async def ensure_soap_logged_in():
     """Ensure we're logged in, re-login if session expired"""
+    global SOAP_LAST_CHECK_TS, SOAP_LOGIN_OK
+    now = time.time()
+    if SOAP_LOGIN_OK and (now - SOAP_LAST_CHECK_TS) < SOAP_CHECK_INTERVAL_SECONDS:
+        return
+
     client = await get_soap_client()
-    response = await client.get("https://soap4youand.me/dashboard/")
+    try:
+        response = await client.get("https://soap4youand.me/dashboard/")
+        SOAP_LAST_CHECK_TS = now
+    except httpx.HTTPError as exc:
+        # Dashboard ping may fail transiently; if we already have a working session,
+        # keep using it and let the actual content request decide.
+        if SOAP_LOGIN_OK:
+            print(f"SOAP dashboard check failed, using existing session: {exc}")
+            return
+        await login_to_soap()
+        return
+
     if "login" in str(response.url):
         await login_to_soap()
+        return
+
+    SOAP_LOGIN_OK = True
+
+
+async def ensure_soap_or_503():
+    try:
+        await ensure_soap_logged_in()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"SOAP upstream unavailable: {exc}") from exc
 
 
 def extract_api_token(html: str) -> Optional[str]:
@@ -917,6 +1056,104 @@ def _normalize_duration(value: str) -> Optional[str]:
     return value.strip()
 
 
+def _normalize_external_url(url: Optional[str]) -> Optional[str]:
+    if not url:
+        return None
+    value = url.strip()
+    if value.startswith("//"):
+        value = f"https:{value}"
+    if value.startswith("/"):
+        return None
+    parsed = urlparse(value)
+    if parsed.scheme not in {"http", "https"}:
+        return None
+    return value
+
+
+def _decode_entities(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    text = unescape(str(value)).replace("\xa0", " ")
+    text = re.sub(r"\s+", " ", text).strip()
+    return text or None
+
+
+def _extract_soap_title(soup: BeautifulSoup) -> Optional[str]:
+    title_node = soup.select_one("h1")
+    if title_node:
+        text = title_node.get_text(" ", strip=True)
+        if text:
+            return _decode_entities(text)
+    return None
+
+
+def _extract_soap_description(soup: BeautifulSoup) -> Optional[str]:
+    for selector in (
+        'meta[property="og:description"]',
+        'meta[name="description"]',
+    ):
+        node = soup.select_one(selector)
+        if node and node.get("content"):
+            value = node.get("content", "").strip()
+            value = re.sub(r"\s+", " ", value)
+            if value:
+                return _decode_entities(value)
+
+    for selector in (
+        ".description",
+        ".plot",
+        ".movie-description",
+        ".movie-info p",
+        ".info p",
+        ".card-body p",
+    ):
+        node = soup.select_one(selector)
+        if node:
+            text = re.sub(r"\s+", " ", node.get_text(" ", strip=True)).strip()
+            if len(text) > 24:
+                return _decode_entities(text)
+    return None
+
+
+def _extract_soap_poster(soup: BeautifulSoup) -> Optional[str]:
+    meta_og = soup.select_one('meta[property="og:image"]')
+    if meta_og and meta_og.get("content"):
+        normalized = _normalize_soap_url(meta_og["content"])
+        if normalized:
+            return normalized
+
+    for selector in (
+        "img.poster",
+        ".poster img",
+        ".movie-poster img",
+        ".details-poster img",
+        "img[src*='/assets/covers/']",
+    ):
+        node = soup.select_one(selector)
+        if node and node.get("src"):
+            normalized = _normalize_soap_url(node.get("src"))
+            if normalized:
+                return normalized
+    return None
+
+
+def _extract_soap_links(soup: BeautifulSoup) -> tuple[Optional[str], Optional[str]]:
+    imdb_url = None
+    kp_url = None
+    for link in soup.find_all("a", href=True):
+        href = _normalize_external_url(link.get("href"))
+        if not href:
+            continue
+        lowered = href.lower()
+        if not imdb_url and "imdb.com/title/tt" in lowered:
+            imdb_url = href
+        if not kp_url and "kinopoisk" in lowered:
+            kp_url = href
+        if imdb_url and kp_url:
+            break
+    return imdb_url, kp_url
+
+
 def parse_soap_meta(html: str) -> dict:
     soup = BeautifulSoup(html, "html.parser")
     text = soup.get_text(" ", strip=True)
@@ -935,12 +1172,694 @@ def parse_soap_meta(html: str) -> dict:
         re.IGNORECASE,
     )
     duration = _normalize_duration(duration_match.group(1)) if duration_match else None
+    imdb_url, kp_url = _extract_soap_links(soup)
+    soap_description = _extract_soap_description(soup)
+    soap_poster = _extract_soap_poster(soup)
+    soap_title = _extract_soap_title(soup)
 
     return {
         "imdb": imdb,
         "kp": kp,
         "duration": duration,
+        "imdb_url": imdb_url,
+        "kp_url": kp_url,
+        "soap_description": soap_description,
+        "soap_poster": soap_poster,
+        "soap_title": soap_title,
     }
+
+
+def _safe_float(value: Optional[str | float | int]) -> Optional[float]:
+    if value is None:
+        return None
+    try:
+        return float(str(value).replace(",", ".").strip())
+    except Exception:
+        return None
+
+
+def _format_rating(value: Optional[float]) -> Optional[str]:
+    if value is None:
+        return None
+    return f"{value:.1f}".rstrip("0").rstrip(".") if value % 1 else f"{value:.1f}"
+
+
+def _build_player_meta_cache_key(
+    item_type: str,
+    item_id: Optional[str],
+    slug: Optional[str],
+    item_url: Optional[str],
+    title: Optional[str],
+    year: Optional[str],
+) -> str:
+    parts = [
+        PLAYER_META_CACHE_VERSION,
+        item_type or "",
+        item_id or "",
+        slug or "",
+        item_url or "",
+        title or "",
+        year or "",
+    ]
+    joined = "|".join(part.strip() for part in parts)
+    return hashlib.sha1(joined.encode("utf-8")).hexdigest()
+
+
+def _parse_json_ld_objects(html: str) -> list[dict]:
+    objects: list[dict] = []
+    for match in re.findall(
+        r"<script[^>]*type=[\"']application/ld\+json[\"'][^>]*>(.*?)</script>",
+        html,
+        re.DOTALL | re.IGNORECASE,
+    ):
+        cleaned = re.sub(r"/\*.*?\*/", "", match, flags=re.DOTALL).strip()
+        cleaned = cleaned.strip(";\n\r\t ")
+        try:
+            parsed = json.loads(cleaned)
+        except Exception:
+            continue
+        if isinstance(parsed, dict):
+            objects.append(parsed)
+        elif isinstance(parsed, list):
+            objects.extend(obj for obj in parsed if isinstance(obj, dict))
+    return objects
+
+
+def _imdb_title_id(url: Optional[str]) -> Optional[str]:
+    if not url:
+        return None
+    match = re.search(r"(tt\d+)", url, re.IGNORECASE)
+    if not match:
+        return None
+    return match.group(1).lower()
+
+
+def _normalize_imdb_url(url: Optional[str]) -> Optional[str]:
+    title_id = _imdb_title_id(url)
+    if not title_id:
+        return None
+    return f"https://www.imdb.com/title/{title_id}/"
+
+
+def _extract_ddg_targets(html: str) -> list[str]:
+    targets: list[str] = []
+    for href in re.findall(r'class="result__a" href="([^"]+)"', html):
+        raw = href.replace("&amp;", "&")
+        if "uddg=" in raw:
+            uddg_part = raw.split("uddg=", 1)[1]
+            uddg = uddg_part.split("&", 1)[0]
+            target = unquote(uddg)
+        else:
+            target = raw
+        target = _normalize_external_url(target)
+        if target:
+            targets.append(target)
+    return targets
+
+
+def _normalize_letterboxd_film_url(url: Optional[str]) -> Optional[str]:
+    normalized = _normalize_external_url(url)
+    if not normalized:
+        return None
+    parsed = urlparse(normalized)
+    if parsed.netloc not in {"letterboxd.com", "www.letterboxd.com"}:
+        return None
+    match = re.match(r"^/film/([^/?#]+)/?$", parsed.path)
+    if not match:
+        return None
+    slug = match.group(1)
+    return f"https://letterboxd.com/film/{slug}/"
+
+
+def _extract_letterboxd_canonical_url(html: str) -> Optional[str]:
+    match = re.search(
+        r'<meta property="og:url"\s+content="([^"]+)"',
+        html or "",
+        re.IGNORECASE,
+    )
+    if not match:
+        return None
+    return _normalize_letterboxd_film_url(match.group(1))
+
+
+def _extract_letterboxd_page_year(html: str) -> Optional[str]:
+    match = re.search(r'<small class="number">\s*<a[^>]*>(\d{4})</a>', html or "", re.IGNORECASE)
+    if match:
+        return match.group(1)
+    title_match = re.search(r"<title>.*?\\((\\d{4})\\).*?</title>", html or "", re.IGNORECASE | re.DOTALL)
+    if title_match:
+        return title_match.group(1)
+    return None
+
+
+def _is_cloudflare_block_page(body: str) -> bool:
+    lowered = (body or "").lower()
+    return "just a moment" in lowered and "cloudflare" in lowered
+
+
+def _slugify_for_letterboxd(value: str) -> str:
+    text = unescape(value or "").lower()
+    text = text.replace("’", "").replace("'", "")
+    text = re.sub(r"&", " and ", text)
+    text = re.sub(r"[^a-z0-9]+", "-", text)
+    text = re.sub(r"-{2,}", "-", text).strip("-")
+    return text
+
+
+def _normalize_title_for_match(value: Optional[str]) -> str:
+    text = unescape(value or "").lower()
+    text = re.sub(r"[\"'’`]", "", text)
+    text = re.sub(r"[^a-z0-9]+", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _tmdb_headers() -> dict:
+    headers = {"Accept": "application/json"}
+    if TMDB_BEARER_TOKEN:
+        headers["Authorization"] = f"Bearer {TMDB_BEARER_TOKEN}"
+    return headers
+
+
+def _tmdb_params(extra: dict | None = None) -> dict:
+    params = {"language": "en-US", "include_adult": "false"}
+    if TMDB_API_KEY:
+        params["api_key"] = TMDB_API_KEY
+    if extra:
+        params.update(extra)
+    return params
+
+
+async def _tmdb_get(path: str, params: dict | None = None) -> Optional[dict]:
+    if not TMDB_API_KEY and not TMDB_BEARER_TOKEN:
+        return None
+    client = await get_meta_client()
+    try:
+        response = await client.get(
+            f"https://api.themoviedb.org/3{path}",
+            params=_tmdb_params(params),
+            headers=_tmdb_headers(),
+        )
+    except Exception:
+        return None
+    if response.status_code != 200:
+        return None
+    try:
+        return response.json()
+    except Exception:
+        return None
+
+
+def _tmdb_image_url(path: Optional[str], size: str = "w780") -> Optional[str]:
+    if not path:
+        return None
+    return f"https://image.tmdb.org/t/p/{size}{path}"
+
+
+def _tmdb_item_year(item: dict, media_type: str) -> Optional[str]:
+    if media_type == "movie":
+        date = item.get("release_date") or ""
+    else:
+        date = item.get("first_air_date") or ""
+    match = re.match(r"^(\d{4})", str(date))
+    return match.group(1) if match else None
+
+
+async def _find_tmdb_by_imdb_id(imdb_url: Optional[str], tmdb_media_type: str) -> Optional[dict]:
+    imdb_id = _imdb_title_id(imdb_url)
+    if not imdb_id:
+        return None
+    payload = await _tmdb_get(f"/find/{imdb_id}", params={"external_source": "imdb_id"})
+    if not payload:
+        return None
+    result_key = "movie_results" if tmdb_media_type == "movie" else "tv_results"
+    results = payload.get(result_key) or []
+    if not results:
+        return None
+    results = sorted(
+        results,
+        key=lambda item: (
+            bool(item.get("poster_path")),
+            float(item.get("vote_average") or 0.0),
+            float(item.get("popularity") or 0.0),
+        ),
+        reverse=True,
+    )
+    return results[0]
+
+
+def _score_tmdb_candidate(item: dict, media_type: str, query_title: str, query_year: Optional[str]) -> float:
+    query_norm = _normalize_title_for_match(query_title)
+    candidate_title = item.get("title") if media_type == "movie" else item.get("name")
+    candidate_norm = _normalize_title_for_match(candidate_title)
+    alt_norms = []
+    if item.get("original_title"):
+        alt_norms.append(_normalize_title_for_match(item.get("original_title")))
+    if item.get("original_name"):
+        alt_norms.append(_normalize_title_for_match(item.get("original_name")))
+
+    best_ratio = 0.0
+    for variant in [candidate_norm] + alt_norms:
+        if not variant:
+            continue
+        ratio = difflib.SequenceMatcher(None, query_norm, variant).ratio()
+        if variant == query_norm:
+            ratio += 0.25
+        elif variant.startswith(query_norm) or query_norm.startswith(variant):
+            ratio += 0.12
+        best_ratio = max(best_ratio, ratio)
+
+    year_score = 0.0
+    if query_year:
+        item_year = _tmdb_item_year(item, media_type)
+        if item_year:
+            try:
+                item_year_num = int(item_year)
+                query_year_num = int(query_year)
+            except ValueError:
+                item_year_num = None
+                query_year_num = None
+            if item_year == query_year:
+                year_score = 0.25
+            elif (
+                item_year_num is not None
+                and query_year_num is not None
+                and abs(item_year_num - query_year_num) <= 1
+            ):
+                year_score = 0.1
+            else:
+                year_score = -0.25
+
+    popularity = min(float(item.get("popularity") or 0.0), 100.0) / 1000.0
+    poster_bonus = 0.02 if item.get("poster_path") else -0.1
+    return best_ratio + year_score + popularity + poster_bonus
+
+
+async def fetch_tmdb_meta(
+    title: Optional[str],
+    year: Optional[str],
+    media_type: str,
+    imdb_url: Optional[str] = None,
+) -> dict:
+    clean_title = (title or "").strip()
+    if media_type not in {"movie", "series"}:
+        return {}
+    if not clean_title and not imdb_url:
+        return {}
+    if not TMDB_API_KEY and not TMDB_BEARER_TOKEN:
+        return {}
+
+    year_match = re.search(r"(\d{4})", str(year or ""))
+    query_year = year_match.group(1) if year_match else None
+    tmdb_media = "movie" if media_type == "movie" else "tv"
+    search_path = "/search/movie" if tmdb_media == "movie" else "/search/tv"
+    year_param = "year" if media_type == "movie" else "first_air_date_year"
+    candidate_queries = []
+    if clean_title:
+        if query_year:
+            candidate_queries.append(_tmdb_params({"query": clean_title, year_param: query_year}))
+        candidate_queries.append(_tmdb_params({"query": clean_title}))
+
+    best_item = await _find_tmdb_by_imdb_id(imdb_url, tmdb_media)
+    best_score = 999.0 if best_item else -999.0
+    if not best_item and candidate_queries:
+        client = await get_meta_client()
+        for params in candidate_queries:
+            # _tmdb_params already adds auth params; request directly to avoid double merge.
+            try:
+                response = await client.get(
+                    f"https://api.themoviedb.org/3{search_path}",
+                    params=params,
+                    headers=_tmdb_headers(),
+                )
+            except Exception:
+                continue
+            if response.status_code != 200:
+                continue
+            payload = response.json()
+            for item in payload.get("results", [])[:12]:
+                score = _score_tmdb_candidate(
+                    item=item,
+                    media_type=tmdb_media,
+                    query_title=clean_title,
+                    query_year=query_year,
+                )
+                if score > best_score:
+                    best_score = score
+                    best_item = item
+            if best_item and best_score >= 0.72:
+                break
+
+    if not best_item:
+        return {}
+    if best_score < 0.58:
+        return {}
+
+    tmdb_id = best_item.get("id")
+    details = await _tmdb_get(f"/{tmdb_media}/{tmdb_id}")
+    images = await _tmdb_get(f"/{tmdb_media}/{tmdb_id}/images")
+
+    posters: list[str] = []
+    image_items = (images or {}).get("posters") or []
+    if image_items:
+        sorted_posters = sorted(
+            image_items,
+            key=lambda p: (
+                (p.get("iso_639_1") in (None, "en", "ru")),
+                float(p.get("vote_average") or 0.0),
+                int(p.get("vote_count") or 0),
+                int(p.get("width") or 0),
+            ),
+            reverse=True,
+        )
+        for p in sorted_posters[:10]:
+            url = _tmdb_image_url(p.get("file_path"), size="w780")
+            if url:
+                posters.append(url)
+
+    main_cover = _tmdb_image_url((details or {}).get("poster_path"), size="w780") or _tmdb_image_url(best_item.get("poster_path"), size="w780")
+    if main_cover:
+        posters = [main_cover] + [url for url in posters if url != main_cover]
+
+    year_value = _tmdb_item_year(details or best_item, tmdb_media)
+    overview = (details or {}).get("overview") or best_item.get("overview")
+    tmdb_title = (details or {}).get("title") or (details or {}).get("name") or best_item.get("title") or best_item.get("name")
+
+    return {
+        "title": _decode_entities(tmdb_title),
+        "year": year_value,
+        "description": _decode_entities(overview),
+        "cover": posters[0] if posters else None,
+        "covers": posters[:8],
+        "tmdb_id": tmdb_id,
+    }
+
+
+async def search_letterboxd_film_url(title: Optional[str], year: Optional[str]) -> Optional[str]:
+    cleaned_title = (title or "").strip()
+    if not cleaned_title:
+        return None
+
+    client = await get_meta_client()
+    year_text = str(year).strip() if year else ""
+    plain_title = re.sub(r"[\"'’`]", "", cleaned_title)
+    title_slug = _slugify_for_letterboxd(cleaned_title)
+    year_slug = f"{title_slug}-{year_text}" if title_slug and year_text.isdigit() else None
+
+    # First try deterministic slug candidates.
+    for candidate in [year_slug, title_slug]:
+        if not candidate:
+            continue
+        guessed = f"https://letterboxd.com/film/{candidate}/"
+        try:
+            guess_response = await client.get(guessed)
+        except Exception:
+            continue
+        if guess_response.status_code != 200 or _is_cloudflare_block_page(guess_response.text):
+            continue
+        canonical = _extract_letterboxd_canonical_url(guess_response.text) or guessed
+        parsed_year = _extract_letterboxd_page_year(guess_response.text)
+        if year_text and parsed_year and parsed_year != year_text:
+            continue
+        return canonical
+
+    queries = [
+        f'site:letterboxd.com/film "{cleaned_title}" {year_text}'.strip(),
+        f'site:letterboxd.com/film "{cleaned_title}"'.strip(),
+        f'site:letterboxd.com/film "{plain_title}" {year_text}'.strip(),
+        f'site:letterboxd.com/film "{plain_title}"'.strip(),
+    ]
+
+    for query in queries:
+        try:
+            response = await client.get(
+                "https://html.duckduckgo.com/html/",
+                params={"q": query},
+            )
+        except Exception:
+            continue
+        if response.status_code != 200:
+            continue
+        candidates = []
+        for target in _extract_ddg_targets(response.text):
+            normalized = _normalize_letterboxd_film_url(target)
+            if normalized:
+                score = 0
+                parsed = urlparse(normalized)
+                slug_path = parsed.path.strip("/").split("/")[-1]
+                if year_text and slug_path.endswith(f"-{year_text}"):
+                    score += 6
+                if title_slug and slug_path == title_slug:
+                    score += 3
+                if title_slug and slug_path.startswith(f"{title_slug}-"):
+                    score += 2
+                candidates.append((score, normalized))
+        if candidates:
+            candidates.sort(key=lambda item: item[0], reverse=True)
+            return candidates[0][1]
+
+    return None
+
+
+def _pick_letterboxd_poster(html: str) -> Optional[str]:
+    poster_urls = re.findall(
+        r'(https://a\.ltrbxd\.com/resized/film-poster/[^"\']+\.(?:jpg|jpeg|png)[^"\']*)',
+        html or "",
+        re.IGNORECASE,
+    )
+    if poster_urls:
+        best = None
+        best_height = -1
+        for candidate in poster_urls:
+            size_match = re.search(r"-0-(\d+)-0-(\d+)-crop", candidate)
+            if size_match:
+                try:
+                    height = int(size_match.group(2))
+                except Exception:
+                    height = 0
+            else:
+                height = 0
+            if height > best_height:
+                best_height = height
+                best = candidate
+        if best:
+            return re.sub(r"-0-\d+-0-\d+-crop", "-0-1000-0-1500-crop", best)
+
+    # Only use og:image if it still points to a film poster asset.
+    og_image_match = re.search(r'<meta property="og:image"\s+content="([^"]+)"', html or "", re.IGNORECASE)
+    if og_image_match:
+        og = _normalize_external_url(og_image_match.group(1))
+        if og and "/film-poster/" in og:
+            return og
+    return None
+
+
+async def fetch_letterboxd_meta(title: Optional[str], year: Optional[str]) -> dict:
+    film_url = await search_letterboxd_film_url(title, year)
+    if not film_url:
+        return {}
+
+    client = await get_meta_client()
+    try:
+        response = await client.get(film_url)
+    except Exception:
+        return {}
+
+    if response.status_code != 200:
+        return {}
+    if _is_cloudflare_block_page(response.text):
+        return {}
+
+    json_ld = _parse_json_ld_objects(response.text)
+    description = None
+    lbxd_rating = None
+    for obj in json_ld:
+        if not description and obj.get("description"):
+            description = _decode_entities(str(obj.get("description")).strip())
+        aggregate = obj.get("aggregateRating")
+        if isinstance(aggregate, dict) and aggregate.get("ratingValue") is not None:
+            lbxd_rating = _safe_float(aggregate.get("ratingValue"))
+            if lbxd_rating is not None:
+                break
+
+    if not description:
+        meta_desc_match = re.search(
+            r'<meta name="description"\s+content="([^"]+)"',
+            response.text,
+            re.IGNORECASE,
+        )
+        if meta_desc_match:
+            description = _decode_entities(meta_desc_match.group(1).strip())
+
+    poster = _pick_letterboxd_poster(response.text)
+    rating_x10 = lbxd_rating * 2 if lbxd_rating is not None else None
+
+    return {
+        "url": film_url,
+        "rating": _format_rating(rating_x10),
+        "description": _decode_entities(description),
+        "poster": poster,
+    }
+
+
+async def fetch_imdb_mobile_meta(imdb_url: Optional[str]) -> dict:
+    normalized = _normalize_imdb_url(imdb_url)
+    if not normalized:
+        return {}
+
+    title_id = _imdb_title_id(normalized)
+    if not title_id:
+        return {}
+
+    mobile_url = f"https://m.imdb.com/title/{title_id}/"
+    client = await get_meta_client()
+    try:
+        response = await client.get(mobile_url)
+    except Exception:
+        return {}
+
+    if response.status_code != 200 or not response.text:
+        return {}
+
+    description = None
+    poster = None
+    rating = None
+    for obj in _parse_json_ld_objects(response.text):
+        if not description and obj.get("description"):
+            description = _decode_entities(str(obj.get("description")).strip())
+        if not poster and obj.get("image"):
+            image_value = obj.get("image")
+            if isinstance(image_value, str):
+                poster = image_value
+            elif isinstance(image_value, dict) and image_value.get("url"):
+                poster = str(image_value.get("url"))
+        aggregate = obj.get("aggregateRating")
+        if isinstance(aggregate, dict):
+            rating_value = _safe_float(aggregate.get("ratingValue"))
+            if rating_value is not None:
+                rating = _format_rating(rating_value)
+
+    if not poster:
+        og_image_match = re.search(r'<meta property="og:image"\s+content="([^"]+)"', response.text, re.IGNORECASE)
+        if og_image_match:
+            poster = _normalize_external_url(og_image_match.group(1))
+
+    return {
+        "description": _decode_entities(description),
+        "poster": _normalize_external_url(poster),
+        "rating": rating,
+        "url": normalized,
+    }
+
+
+async def detect_stream_type(stream_url: Optional[str]) -> str:
+    if not stream_url:
+        return "hls"
+
+    now = time.time()
+    cached = STREAM_TYPE_CACHE.get(stream_url)
+    if cached and (now - cached.get("ts", 0) < STREAM_TYPE_TTL_SECONDS):
+        return cached.get("type", "mp4")
+
+    lowered = stream_url.lower()
+    if lowered.endswith(".m3u8") or ".m3u8?" in lowered or "/hls/" in lowered:
+        STREAM_TYPE_CACHE[stream_url] = {"ts": now, "type": "hls"}
+        return "hls"
+    if lowered.endswith(".mp4"):
+        STREAM_TYPE_CACHE[stream_url] = {"ts": now, "type": "mp4"}
+        return "mp4"
+
+    client = await get_soap_client()
+    headers = {"Range": "bytes=0-511"}
+    try:
+        async with client.stream("GET", stream_url, headers=headers) as response:
+            content_type = (response.headers.get("content-type") or "").lower()
+            sample = b""
+            async for chunk in response.aiter_bytes():
+                if chunk:
+                    sample += chunk
+                if len(sample) >= 512:
+                    break
+
+        if "mpegurl" in content_type or "vnd.apple.mpegurl" in content_type:
+            STREAM_TYPE_CACHE[stream_url] = {"ts": now, "type": "hls"}
+            return "hls"
+        if "video/mp4" in content_type or "application/mp4" in content_type:
+            STREAM_TYPE_CACHE[stream_url] = {"ts": now, "type": "mp4"}
+            return "mp4"
+        if sample.lstrip().startswith(b"#EXTM3U"):
+            STREAM_TYPE_CACHE[stream_url] = {"ts": now, "type": "hls"}
+            return "hls"
+        if b"ftyp" in sample[:128]:
+            STREAM_TYPE_CACHE[stream_url] = {"ts": now, "type": "mp4"}
+            return "mp4"
+    except Exception:
+        pass
+
+    # Most non-manifest SOAP URLs without explicit .m3u8 are progressive files.
+    STREAM_TYPE_CACHE[stream_url] = {"ts": now, "type": "mp4"}
+    return "mp4"
+
+
+async def enrich_player_meta(
+    item_type: str,
+    soap_data: dict,
+    title: Optional[str],
+    year: Optional[str],
+) -> dict:
+    imdb_value = soap_data.get("imdb")
+    kp_value = soap_data.get("kp")
+    imdb_url = _normalize_imdb_url(soap_data.get("imdb_url"))
+    kp_url = _normalize_external_url(soap_data.get("kp_url"))
+    base_title = (title or soap_data.get("soap_title") or "").strip()
+
+    payload = {
+        "type": "series" if item_type in {"series", "soap"} else "movie",
+        "title": base_title or None,
+        "year": year,
+        "duration": soap_data.get("duration"),
+        "description": soap_data.get("soap_description"),
+        "cover": soap_data.get("soap_poster"),
+        "covers": [soap_data.get("soap_poster")] if soap_data.get("soap_poster") else [],
+        "ratings": {
+            "imdb": {"value": imdb_value, "url": imdb_url},
+            "kp": {"value": kp_value, "url": kp_url},
+            "lbxd": None,
+        },
+    }
+
+    imdb_meta = {}
+    if imdb_url:
+        imdb_meta = await fetch_imdb_mobile_meta(imdb_url)
+        imdb_poster = imdb_meta.get("poster")
+        if imdb_poster:
+            # Force IMDb cover for RU compatibility.
+            payload["cover"] = imdb_poster
+            payload["covers"] = [imdb_poster]
+
+    if payload["type"] == "movie":
+        lbxd_meta = await fetch_letterboxd_meta(base_title, year)
+        if lbxd_meta:
+            payload["ratings"]["lbxd"] = {
+                "value": lbxd_meta.get("rating"),
+                "url": lbxd_meta.get("url"),
+            }
+            if lbxd_meta.get("description"):
+                payload["description"] = lbxd_meta.get("description")
+
+        if imdb_meta.get("description") and not payload.get("description"):
+            payload["description"] = imdb_meta.get("description")
+        if imdb_meta.get("rating") and not payload["ratings"]["imdb"]["value"]:
+            payload["ratings"]["imdb"]["value"] = imdb_meta.get("rating")
+    else:
+        if imdb_meta.get("description"):
+            payload["description"] = imdb_meta.get("description")
+        if imdb_meta.get("rating") and not payload["ratings"]["imdb"]["value"]:
+            payload["ratings"]["imdb"]["value"] = imdb_meta.get("rating")
+
+    if payload.get("cover") and not payload.get("covers"):
+        payload["covers"] = [payload["cover"]]
+
+    return payload
 
 
 def _pick_best_srcset(srcset: str) -> Optional[str]:
@@ -1094,20 +2013,19 @@ async def startup():
     _ensure_lists_storage_initialized()
     print(f"Admin lists storage file: {LISTS_FILE}")
     if SOAP_LOGIN and SOAP_PASSWORD:
-        try:
-            await login_to_soap()
-        except Exception as e:
-            print(f"SOAP login failed: {e}")
+        print("SOAP credentials detected; session login will happen on first SOAP request")
     print("alphy backend started successfully")
 
 
 @app.on_event("shutdown")
 async def shutdown():
-    global _proxy_client, soap_client
+    global _proxy_client, soap_client, _meta_client
     if _proxy_client and not _proxy_client.is_closed:
         await _proxy_client.aclose()
     if soap_client and not soap_client.is_closed:
         await soap_client.aclose()
+    if _meta_client and not _meta_client.is_closed:
+        await _meta_client.aclose()
 
 
 @app.get("/api/search")
