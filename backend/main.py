@@ -16,6 +16,7 @@ import difflib
 from urllib.parse import urlparse, urljoin, quote, unquote
 from collections import defaultdict
 from html import unescape
+from datetime import datetime, timezone
 
 import httpx
 from bs4 import BeautifulSoup
@@ -40,7 +41,8 @@ app = FastAPI(title="alphy")
 LEGACY_LISTS_FILE = os.path.join(os.path.dirname(__file__), "data", "admin_lists.json")
 ADMIN_LISTS_FILE_ENV = os.getenv("ADMIN_LISTS_FILE")
 ADMIN_LISTS_DIR_ENV = os.getenv("ADMIN_LISTS_DIR")
-RENDER_PERSISTENT_DIR = os.getenv("RENDER_DISK_PATH", "/var/data")
+RENDER_DISK_PATH_ENV = os.getenv("RENDER_DISK_PATH")
+DEFAULT_RENDER_DISK_PATH = "/var/data"
 _LISTS_STORAGE_READY = False
 
 
@@ -49,12 +51,55 @@ def _resolve_lists_file() -> str:
         return ADMIN_LISTS_FILE_ENV
     if ADMIN_LISTS_DIR_ENV:
         return os.path.join(ADMIN_LISTS_DIR_ENV, "admin_lists.json")
-    if os.path.isdir(RENDER_PERSISTENT_DIR):
-        return os.path.join(RENDER_PERSISTENT_DIR, "admin_lists.json")
+    if RENDER_DISK_PATH_ENV:
+        return os.path.join(RENDER_DISK_PATH_ENV, "admin_lists.json")
+    if os.path.isdir(DEFAULT_RENDER_DISK_PATH):
+        return os.path.join(DEFAULT_RENDER_DISK_PATH, "admin_lists.json")
     return LEGACY_LISTS_FILE
 
 
 LISTS_FILE = _resolve_lists_file()
+
+
+def _admin_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _empty_admin_payload() -> dict:
+    return {
+        "lists": [],
+        "revision": 0,
+        "updated_at": None,
+    }
+
+
+def _normalize_admin_payload(data: object) -> dict:
+    if not isinstance(data, dict):
+        return _empty_admin_payload()
+
+    lists = data.get("lists")
+    normalized_lists = _normalize_admin_lists({"lists": lists}).get("lists", [])
+
+    raw_revision = data.get("revision")
+    try:
+        revision = int(raw_revision)
+    except Exception:
+        revision = 1 if normalized_lists else 0
+    if revision < 0:
+        revision = 0
+    if revision == 0 and normalized_lists:
+        revision = 1
+
+    updated_at = data.get("updated_at")
+    updated_at_value = str(updated_at).strip() if updated_at else None
+    if updated_at_value == "":
+        updated_at_value = None
+
+    return {
+        "lists": normalized_lists,
+        "revision": revision,
+        "updated_at": updated_at_value,
+    }
 
 
 def _decode_admin_token(token: str) -> Optional[tuple[str, str]]:
@@ -93,34 +138,35 @@ def _load_admin_lists() -> dict:
             try:
                 with open(LEGACY_LISTS_FILE, "r", encoding="utf-8") as handle:
                     data = json.load(handle)
-                    if isinstance(data, dict) and isinstance(data.get("lists"), list):
-                        return data
+                    normalized = _normalize_admin_payload(data)
+                    if normalized.get("lists"):
+                        return normalized
             except Exception:
                 pass
-        return {"lists": []}
+        return _empty_admin_payload()
     try:
         with open(LISTS_FILE, "r", encoding="utf-8") as handle:
             data = json.load(handle)
-            if isinstance(data, dict) and isinstance(data.get("lists"), list):
-                return data
+            return _normalize_admin_payload(data)
     except Exception:
         pass
-    return {"lists": []}
+    return _empty_admin_payload()
 
 
 def _save_admin_lists(payload: dict) -> None:
     _ensure_lists_storage_initialized()
+    normalized = _normalize_admin_payload(payload)
     os.makedirs(os.path.dirname(LISTS_FILE), exist_ok=True)
     tmp_path = LISTS_FILE + ".tmp"
     with open(tmp_path, "w", encoding="utf-8") as handle:
-        json.dump(payload, handle, ensure_ascii=False, indent=2)
+        json.dump(normalized, handle, ensure_ascii=False, indent=2)
     os.replace(tmp_path, LISTS_FILE)
     # Keep a mirrored copy in the legacy path for easier recovery/debug.
     if LISTS_FILE != LEGACY_LISTS_FILE:
         os.makedirs(os.path.dirname(LEGACY_LISTS_FILE), exist_ok=True)
         legacy_tmp = LEGACY_LISTS_FILE + ".tmp"
         with open(legacy_tmp, "w", encoding="utf-8") as handle:
-            json.dump(payload, handle, ensure_ascii=False, indent=2)
+            json.dump(normalized, handle, ensure_ascii=False, indent=2)
         os.replace(legacy_tmp, LEGACY_LISTS_FILE)
 
 
@@ -173,10 +219,11 @@ def _ensure_lists_storage_initialized() -> None:
         try:
             with open(LEGACY_LISTS_FILE, "r", encoding="utf-8") as src:
                 data = json.load(src)
-            if isinstance(data, dict) and isinstance(data.get("lists"), list):
+            normalized = _normalize_admin_payload(data)
+            if normalized.get("lists"):
                 tmp_path = LISTS_FILE + ".tmp"
                 with open(tmp_path, "w", encoding="utf-8") as dst:
-                    json.dump(data, dst, ensure_ascii=False, indent=2)
+                    json.dump(normalized, dst, ensure_ascii=False, indent=2)
                 os.replace(tmp_path, LISTS_FILE)
         except Exception:
             pass
@@ -194,6 +241,18 @@ async def admin_check(request: Request):
     return {"status": "ok"}
 
 
+@app.get("/api/admin/storage")
+async def admin_storage_info(request: Request):
+    require_admin(request)
+    path = LISTS_FILE
+    persistent_dir = os.getenv("ADMIN_LISTS_DIR") or os.getenv("RENDER_DISK_PATH") or DEFAULT_RENDER_DISK_PATH
+    is_persistent_target = bool(path and os.path.abspath(path).startswith(os.path.abspath(persistent_dir)))
+    return {
+        "file": path,
+        "persistent_target": is_persistent_target,
+    }
+
+
 @app.get("/api/lists")
 async def public_lists():
     return _load_admin_lists()
@@ -209,9 +268,76 @@ async def admin_lists(request: Request):
 async def update_admin_lists(request: Request):
     require_admin(request)
     payload = await request.json()
-    normalized = _normalize_admin_lists(payload)
-    _save_admin_lists(normalized)
-    return normalized
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Invalid payload")
+    current = _load_admin_lists()
+
+    base_revision = payload.get("base_revision")
+    if base_revision is not None:
+        try:
+            base_revision_value = int(base_revision)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail="base_revision must be an integer") from exc
+        if base_revision_value != current.get("revision", 0):
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": "Admin lists revision conflict",
+                    "current": current,
+                },
+            )
+
+    normalized_lists = _normalize_admin_lists(payload).get("lists", [])
+    next_payload = {
+        "lists": normalized_lists,
+        "revision": int(current.get("revision", 0)) + 1,
+        "updated_at": _admin_now_iso(),
+    }
+    _save_admin_lists(next_payload)
+    return next_payload
+
+
+@app.post("/api/admin/lists/sync")
+async def sync_admin_lists(request: Request):
+    """
+    Keepalive-friendly sync endpoint.
+    Supports query-based admin auth for beacon-style requests.
+    """
+    require_admin(request, allow_query=True)
+    raw = await request.body()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Missing payload")
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload") from exc
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Invalid payload")
+
+    current = _load_admin_lists()
+    base_revision = payload.get("base_revision")
+    if base_revision is not None:
+        try:
+            base_revision_value = int(base_revision)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail="base_revision must be an integer") from exc
+        if base_revision_value != current.get("revision", 0):
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": "Admin lists revision conflict",
+                    "current": current,
+                },
+            )
+
+    normalized_lists = _normalize_admin_lists(payload).get("lists", [])
+    next_payload = {
+        "lists": normalized_lists,
+        "revision": int(current.get("revision", 0)) + 1,
+        "updated_at": _admin_now_iso(),
+    }
+    _save_admin_lists(next_payload)
+    return next_payload
 
 
 # ==================== SOAP4YOU API ====================
@@ -2012,6 +2138,8 @@ async def startup():
     await initialize()
     _ensure_lists_storage_initialized()
     print(f"Admin lists storage file: {LISTS_FILE}")
+    if LISTS_FILE == LEGACY_LISTS_FILE:
+        print("WARNING: Admin lists are using legacy project storage. Configure ADMIN_LISTS_DIR to a persistent disk path for production durability.")
     if SOAP_LOGIN and SOAP_PASSWORD:
         print("SOAP credentials detected; session login will happen on first SOAP request")
     print("alphy backend started successfully")
